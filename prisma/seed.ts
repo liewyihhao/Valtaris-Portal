@@ -16,6 +16,9 @@ async function main() {
     prisma.job.deleteMany(),
     prisma.cohortMember.deleteMany(),
     prisma.cohort.deleteMany(),
+    prisma.submission.deleteMany(),
+    prisma.clientRateCard.deleteMany(),
+    prisma.client.deleteMany(),
     prisma.appeal.deleteMany(),
     prisma.payout.deleteMany(),
     prisma.payoutRun.deleteMany(),
@@ -280,6 +283,45 @@ async function main() {
   });
   await prisma.cohortMember.create({ data: { cohortId: cohort.id, userId: t2.id, status: "confirmed" } });
   await prisma.cohortMember.create({ data: { cohortId: cohort.id, userId: t3.id, status: "confirmed" } });
+
+  // --- Clients + charge rates (margin = charge − annotator pay) ------------
+  const clientData: { key: string; name: string; rates: [string, number][] }[] = [
+    { key: "client-a", name: "Client A", rates: [["Sentiment tagging", 0.45], ["Content moderation", 0.5]] },
+    { key: "client-b", name: "Client B", rates: [["Content moderation", 0.55]] },
+    { key: "client-c", name: "Client C", rates: [["Bounding boxes", 0.8]] },
+  ];
+  for (const c of clientData) {
+    const client = await prisma.client.create({ data: { key: c.key, name: c.name } });
+    for (const [taskType, chargeRate] of c.rates) {
+      await prisma.clientRateCard.create({ data: { clientId: client.id, taskType, chargeRate, version: 1, isCurrent: true } });
+    }
+  }
+
+  // --- A Label Studio qualification (exam) project using native gold serving -
+  const textQualProject = "ls-proj-qual-text";
+  await prisma.labelStudioMapping.create({
+    data: {
+      trackId: textTrack.id, labelStudioInstanceUrl: "http://localhost:8080",
+      labelStudioProjectId: textQualProject, inviteLink: "http://localhost:8080/invite/qual-text",
+      isQualificationProject: true, annotatorEvaluationEnabled: true,
+      templateKey: "natural-language-processing/text-classification", guidelineVersionSynced: 2,
+    },
+  });
+
+  // --- Sample submissions (gold + live) feeding performance ----------------
+  for (const [i, s] of [
+    { user: t2, gold: true, res: "pass" }, { user: t2, gold: true, res: "pass" },
+    { user: t2, gold: false, res: "approved" }, { user: t3, gold: true, res: "pass" },
+  ].entries()) {
+    await prisma.submission.create({
+      data: {
+        userId: s.user.id, trackId: textTrack.id, taskBatchId: batchSent.id,
+        labelStudioProjectId: "ls-proj-101", labelStudioTaskId: `t-${i}`,
+        labelStudioAnnotationId: `ann-${s.user.id.slice(0, 6)}-${i}`,
+        isGold: s.gold, qaResult: s.res, submittedResult: { choices: ["Negative"] },
+      },
+    });
+  }
 
   // --- A completed payout run sweeping the paid payout ---------------------
   const run = await prisma.payoutRun.create({

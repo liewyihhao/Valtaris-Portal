@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { Inbox, Users, DollarSign, HelpCircle, FileText, Boxes, LogOut, ArrowLeft, UsersRound, FolderKanban, Wallet, ShieldCheck } from "lucide-react";
+import { Inbox, Users, DollarSign, HelpCircle, FileText, Boxes, LogOut, ArrowLeft, UsersRound, FolderKanban, Wallet, ShieldCheck, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoMark } from "@/components/brand/Logo";
 
@@ -13,6 +13,7 @@ const items = [
   { href: "/admin/talent", label: "Talent pool", icon: UsersRound },
   { href: "/admin/cohorts", label: "Cohorts", icon: FolderKanban },
   { href: "/admin/payouts", label: "Payout monitor", icon: Wallet, roles: ["ops", "admin"] },
+  { href: "/admin/clients", label: "Clients & margin", icon: TrendingUp, roles: ["ops", "admin"] },
   { href: "/admin/compliance", label: "Compliance", icon: ShieldCheck, roles: ["ops", "admin"] },
   { href: "/admin/workers", label: "Worker pool", icon: Users },
   { href: "/admin/rate-cards", label: "Rate cards", icon: DollarSign, roles: ["ops", "admin"] },

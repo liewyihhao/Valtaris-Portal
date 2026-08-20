@@ -23,7 +23,12 @@ export async function POST(req: Request) {
   const annotationId = String(annotation.id ?? "");
   const taskId = String(task.id ?? "");
   const meta = task.meta ?? task.data ?? {};
-  const isGold = Boolean(meta.is_gold);
+  // Gold is identified natively: the task carries a ground_truth answer key
+  // (Section 9). We accept the answer key inline (from LS's ground_truth
+  // annotation) or fall back to a legacy is_gold metadata flag.
+  const groundTruthResult = body.ground_truth_result ?? task.ground_truth_result ?? meta.ground_truth_result ?? null;
+  const isGold = groundTruthResult != null || Boolean(meta.is_gold) || Boolean(annotation.ground_truth);
+  const isQualification = Boolean(body.is_qualification ?? meta.is_qualification);
 
   // Idempotency: skip if we've already recorded this annotation+event.
   const existing = await prisma.webhookEvent.findFirst({
@@ -57,7 +62,9 @@ export async function POST(req: Request) {
     labelStudioUserId: annotation.completed_by ? String(annotation.completed_by) : null,
     valtarisUserId: meta.valtaris_user_id ?? null,
     isGold,
-    goldCorrect: meta.gold_correct ?? null,
+    isQualification,
+    submittedResult: annotation.result ?? null,
+    groundTruthResult,
     itemCount: meta.item_count ?? 1,
   });
 

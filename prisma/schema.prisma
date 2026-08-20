@@ -63,6 +63,7 @@ model User {
   taxProfile            TaxProfile?
   performanceMetrics    PerformanceMetric[]
   cohortMemberships     CohortMember[]
+  submissions           Submission[]
 
   @@index([role])
   @@index([status, lastActiveAt])
@@ -91,6 +92,7 @@ model Track {
   taskBatches        TaskBatch[]
   labelStudioMappings LabelStudioMapping[]
   performanceMetrics PerformanceMetric[]
+  submissions        Submission[]
 }
 
 // The verified skill record. IMPORTANT: `tier` is ONLY writable by the
@@ -263,6 +265,7 @@ model TaskBatch {
   track    Track    @relation(fields: [trackId], references: [id])
   payouts  Payout[]
   cohorts  Cohort[]
+  submissions Submission[]
 
   @@index([trackId])
 }
@@ -366,6 +369,11 @@ model LabelStudioMapping {
   labelStudioProjectId String
   inviteLink           String?
   guidelineVersionSynced Int?
+  // Qualification (exam) projects use LS-native gold-task serving:
+  // annotator_evaluation_enabled routes ground_truth=True tasks first.
+  isQualificationProject Boolean @default(false)
+  annotatorEvaluationEnabled Boolean @default(false)
+  templateKey          String?  // e.g. "natural-language-processing/text-classification"
   createdAt            DateTime @default(now())
 
   track Track @relation(fields: [trackId], references: [id])
@@ -580,6 +588,66 @@ model CohortMember {
 
   @@unique([cohortId, userId])
   @@index([userId])
+}
+
+// ===========================================================================
+// LABEL STUDIO SUBMISSIONS + CLIENT PRICING (margin)
+// ===========================================================================
+
+// One row per Label Studio annotation ingested (gold + live). Section 7 of the
+// integration spec: the per-submission record that ties a payout dispute back
+// to the exact LS annotation. is_gold is derived from a ground_truth=True
+// annotation on the linked task (Section 9), not a bespoke metadata flag.
+model Submission {
+  id                      String   @id @default(cuid())
+  userId                  String
+  trackId                 String
+  taskBatchId             String?
+  labelStudioProjectId    String
+  labelStudioTaskId       String
+  labelStudioAnnotationId String   @unique
+  isGold                  Boolean  @default(false)
+  // For qualification/exam projects (annotator_evaluation_enabled).
+  isQualification         Boolean  @default(false)
+  // qaResult: pending | pass | fail | approved | rejected
+  qaResult                String   @default("pending")
+  submittedResult         Json?
+  createdAt               DateTime @default(now())
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track     Track      @relation(fields: [trackId], references: [id])
+  taskBatch TaskBatch? @relation(fields: [taskBatchId], references: [id])
+
+  @@index([userId, trackId])
+  @@index([labelStudioProjectId])
+}
+
+// A Valtaris client (the buyer of labelled data). `key` matches TaskBatch.clientId.
+model Client {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  rateCards ClientRateCard[]
+}
+
+// What Valtaris CHARGES the client per task type — vs the annotator RateCard
+// (what we pay). Margin = charge − pay. Versioned like the annotator rate card.
+model ClientRateCard {
+  id            String   @id @default(cuid())
+  clientId      String
+  taskType      String
+  chargeRate    Float    // per item billed to the client
+  currency      String   @default("USD")
+  version       Int
+  isCurrent     Boolean  @default(false)
+  effectiveFrom DateTime @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, taskType, version])
+  @@index([clientId, taskType])
 }
 
 // A scheduled payout run that sweeps approved payouts for a period.
