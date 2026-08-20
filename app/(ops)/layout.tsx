@@ -6,7 +6,7 @@ export default async function OpsLayout({ children }: { children: React.ReactNod
   const user = await requireStaff();
   return (
     <div className="portal-root flex min-h-screen flex-col md:flex-row">
-      <OpsNav email={user.email} />
+      <OpsNav email={user.email} role={user.role} />
       <main id="main" className="flex-1 px-5 py-8 md:px-10 md:py-10">
         <div className="mx-auto max-w-6xl">{children}</div>
       </main>

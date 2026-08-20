@@ -14,8 +14,16 @@ async function main() {
     prisma.auditLog.deleteMany(),
     prisma.webhookEvent.deleteMany(),
     prisma.job.deleteMany(),
+    prisma.cohortMember.deleteMany(),
+    prisma.cohort.deleteMany(),
     prisma.appeal.deleteMany(),
     prisma.payout.deleteMany(),
+    prisma.payoutRun.deleteMany(),
+    prisma.performanceMetric.deleteMany(),
+    prisma.trustProfile.deleteMany(),
+    prisma.taxProfile.deleteMany(),
+    prisma.availability.deleteMany(),
+    prisma.annotatorLanguage.deleteMany(),
     prisma.payoutMethod.deleteMany(),
     prisma.reviewFlag.deleteMany(),
     prisma.guidelineAcknowledgment.deleteMany(),
@@ -124,16 +132,78 @@ async function main() {
   await prisma.user.create({
     data: { email: "ops@valtaris.ai", passwordHash: hash, role: "ops", country: "Malaysia", primaryLanguage: "English", fullName: "Ops User", emailVerifiedAt: new Date(), applicationStage: "approved" },
   });
+  const pm = await prisma.user.create({
+    data: { email: "pm@valtaris.ai", passwordHash: hash, role: "project_manager", country: "Malaysia", primaryLanguage: "English", fullName: "Priya Menon", emailVerifiedAt: new Date(), applicationStage: "approved" },
+  });
 
   // A fresh applicant to demo the funnel from the top.
   await prisma.user.create({
-    data: { email: "applicant@example.com", passwordHash: hash, role: "applicant", country: "Philippines", primaryLanguage: "English", emailVerifiedAt: new Date(), applicationStage: "eligibility" },
+    data: { email: "applicant@example.com", passwordHash: hash, role: "applicant", country: "Philippines", primaryLanguage: "English", emailVerifiedAt: new Date(), applicationStage: "eligibility", lastActiveAt: new Date() },
   });
 
-  // Helper to make an approved annotator with a qualification + agreements + LS acct.
+  // A dormant applicant (~11.5 months idle) to demo the lifecycle warn/purge job.
+  await prisma.user.create({
+    data: {
+      email: "dormant@example.com", passwordHash: hash, role: "applicant", country: "Kenya", primaryLanguage: "Swahili",
+      emailVerifiedAt: new Date(Date.now() - 350 * 864e5), applicationStage: "questionnaire",
+      status: "active", lastActiveAt: new Date(Date.now() - 347 * 864e5),
+    },
+  });
+
+  // country → local tax id type (for the country-based TaxProfile).
+  const localTin: Record<string, string> = {
+    "United States": "SSN", Malaysia: "LHDN", India: "PAN", Philippines: "TIN",
+    Mexico: "RFC", Nigeria: "TIN", Brazil: "CPF",
+  };
+
+  // Helper to make an approved annotator with a qualification + agreements + LS acct
+  // + the normalized talent-pool profile (languages, availability, trust, tax, perf).
   async function makeAnnotator(email: string, name: string, country: string, lang: string, track: typeof textTrack, tier: "T1_associate" | "T2_skilled" | "T3_specialist") {
+    const isUS = country === "United States";
+    const idKyc = tier === "T3_specialist"; // T3 requires ID + biometric
     const u = await prisma.user.create({
-      data: { email, passwordHash: hash, role: "annotator", country, primaryLanguage: lang, fullName: name, emailVerifiedAt: new Date(), applicationStage: "approved" },
+      data: {
+        email, passwordHash: hash, role: "annotator", country, primaryLanguage: lang, fullName: name,
+        phone: "+10000000000", emailVerifiedAt: new Date(), phoneVerifiedAt: new Date(),
+        applicationStage: "approved", status: "active",
+        lastActiveAt: new Date(Date.now() - 3 * 864e5),
+      },
+    });
+    // Normalized languages (for talent filtering).
+    await prisma.annotatorLanguage.create({ data: { userId: u.id, language: lang, proficiency: "Native", isPrimary: true } });
+    if (lang !== "English") await prisma.annotatorLanguage.create({ data: { userId: u.id, language: "English", proficiency: "Professional fluency", isPrimary: false } });
+    await prisma.availability.create({ data: { userId: u.id, hoursPerWeek: tier === "T3_specialist" ? 30 : 20, timezone: "UTC", surgeOptIn: tier !== "T1_associate" } });
+    await prisma.trustProfile.create({
+      data: {
+        userId: u.id,
+        kycLevel: idKyc ? "id_biometric" : "email_phone",
+        emailVerified: true, phoneVerified: true,
+        idVerifiedAt: idKyc ? new Date() : null,
+        biometricVerifiedAt: idKyc ? new Date() : null,
+        kycProviderRef: idKyc ? `kyc_${u.id.slice(0, 8)}` : null,
+        sanctionsStatus: "cleared", sanctionsCheckedAt: new Date(),
+        riskScore: idKyc ? 5 : 15,
+      },
+    });
+    await prisma.taxProfile.create({
+      data: {
+        userId: u.id, country,
+        taxIdType: isUS ? "w9" : "w8ben",
+        localTinType: localTin[country] ?? "TIN",
+        taxIdLast4: "1234", taxIdTokenRef: `tok_${u.id.slice(0, 10)}`,
+        formReference: isUS ? "W-9" : "W-8BEN", completedAt: new Date(),
+      },
+    });
+    await prisma.performanceMetric.create({
+      data: {
+        userId: u.id, trackId: track.id,
+        goldPassRate: tier === "T3_specialist" ? 0.97 : tier === "T2_skilled" ? 0.9 : 0.8,
+        interAnnotatorAgreement: tier === "T3_specialist" ? 0.94 : tier === "T2_skilled" ? 0.88 : 0.79,
+        rejectionRate: tier === "T3_specialist" ? 0.02 : tier === "T2_skilled" ? 0.05 : 0.1,
+        appealRate: 0.01, throughput: tier === "T3_specialist" ? 55 : 42,
+        rollingAccuracy: tier === "T3_specialist" ? 0.96 : tier === "T2_skilled" ? 0.89 : 0.81,
+        windowStart: new Date(Date.now() - 30 * 864e5), windowEnd: new Date(),
+      },
     });
     const attempt = await prisma.qualificationTestAttempt.create({
       data: { userId: u.id, trackId: track.id, testTrack: "standard", score: tier === "T3_specialist" ? 96 : tier === "T2_skilled" ? 88 : 74, passed: true, attemptedAt: new Date() },
@@ -178,7 +248,7 @@ async function main() {
   // --- Payouts: a mix of statuses -----------------------------------------
   const now = new Date();
   // t1: a paid batch, a pending one
-  await prisma.payout.create({ data: { userId: t1.id, taskBatchId: batchSent.id, grossAmount: 92.0, currency: "USD", rateCardVersion: 2, tierMultiplier: 1.0, status: "paid", approvedAt: now, paidAt: new Date(now.getTime() - 2 * 864e5), itemCount: 511 } });
+  const paidPayout = await prisma.payout.create({ data: { userId: t1.id, taskBatchId: batchSent.id, grossAmount: 92.0, currency: "USD", rateCardVersion: 2, tierMultiplier: 1.0, status: "paid", approvedAt: now, paidAt: new Date(now.getTime() - 2 * 864e5), itemCount: 511 } });
   await prisma.payout.create({ data: { userId: t1.id, taskBatchId: batchMod.id, grossAmount: 39.6, currency: "USD", rateCardVersion: 2, tierMultiplier: 1.0, status: "pending_qa", holdExpiresAt: new Date(now.getTime() + 18 * 3600 * 1000), itemCount: 150 } });
 
   // t2: approved (available), rejected-with-reason (appealed), and a held one
@@ -199,10 +269,32 @@ async function main() {
   await prisma.reviewFlag.create({ data: { userId: t1.id, type: "self_report_mismatch", context: { domains: ["image"], calibrationScores: { image: 25 } }, note: "Self-rating 'Extensive' with 25% calibration on image." } });
   await prisma.reviewFlag.create({ data: { userId: t3.id, type: "identity_reverification", context: { certifications: "Registered nurse" }, note: "Claimed credential — verify before T3 medical track." } });
 
+  // --- A cohort assembled by the PM for a client project -------------------
+  const cohort = await prisma.cohort.create({
+    data: {
+      name: "Client A — Spanish sentiment surge",
+      description: "T2+ Spanish/English annotators for Client A's 48h sentiment push.",
+      clientName: "Client A", status: "assigned", taskBatchId: batchSent.id, createdById: pm.id,
+      criteria: { track: "text_nlp", minTier: "T2_skilled", languages: ["Spanish"], surgeOptIn: true },
+    },
+  });
+  await prisma.cohortMember.create({ data: { cohortId: cohort.id, userId: t2.id, status: "confirmed" } });
+  await prisma.cohortMember.create({ data: { cohortId: cohort.id, userId: t3.id, status: "confirmed" } });
+
+  // --- A completed payout run sweeping the paid payout ---------------------
+  const run = await prisma.payoutRun.create({
+    data: {
+      periodStart: new Date(now.getTime() - 9 * 864e5), periodEnd: new Date(now.getTime() - 2 * 864e5),
+      status: "completed", cadence: "weekly", totalAmount: 92.0, payoutCount: 1,
+      approvedById: admin.id, approvedAt: new Date(now.getTime() - 2 * 864e5), executedAt: new Date(now.getTime() - 2 * 864e5),
+    },
+  });
+  await prisma.payout.update({ where: { id: paidPayout.id }, data: { payoutRunId: run.id } });
+
   console.log("Seed complete. Demo login password for all accounts: " + PASSWORD);
-  console.log("  admin@valtaris.ai (admin) · ops@valtaris.ai (ops)");
+  console.log("  admin@valtaris.ai (admin) · ops@valtaris.ai (ops) · pm@valtaris.ai (project manager)");
   console.log("  t2.text@example.com (annotator with earnings + appeal)");
-  console.log("  applicant@example.com (fresh funnel)");
+  console.log("  applicant@example.com (fresh funnel) · dormant@example.com (11.5mo idle)");
 }
 
 main()

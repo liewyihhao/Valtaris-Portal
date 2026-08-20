@@ -26,6 +26,37 @@ export type PayoutReasonCode =
   | "below_consensus_threshold"
   | "guideline_violation"
   | "confirmed_fraud";
+export type Role = "applicant" | "annotator" | "project_manager" | "ops" | "admin";
+export type AnnotatorStatus = "active" | "dormant" | "suspended" | "purged";
+export type KycLevel = "none" | "email_phone" | "id_biometric";
+export type SanctionsStatus = "pending" | "cleared" | "flagged";
+export type CohortStatus = "draft" | "assigned" | "archived";
+export type PayoutRunStatus = "draft" | "approved" | "executing" | "completed" | "failed";
+
+// Data-lifecycle policy (applicants). Inactivity milestones.
+export const DORMANCY_WARN_MONTHS = 11; // send re-engagement email
+export const DORMANCY_PURGE_MONTHS = 12; // delete / anonymize PII
+// Financial/tax records for paid workers are held far longer (legal).
+export const PAID_WORKER_RETENTION_YEARS = 7;
+// US 1099-NEC reporting threshold.
+export const TAX_1099_THRESHOLD_USD = 600;
+
+// The tier at/above which ID+biometric KYC is required before access.
+export const KYC_ID_BIOMETRIC_TIER: Tier = "T3_specialist";
+
+export const ROLE_LABEL: Record<Role, string> = {
+  applicant: "Applicant",
+  annotator: "Annotator",
+  project_manager: "Project Manager",
+  ops: "Ops",
+  admin: "Admin",
+};
+
+export const KYC_LABEL: Record<KycLevel, string> = {
+  none: "Unverified",
+  email_phone: "Email + Phone",
+  id_biometric: "ID + Biometric",
+};
 
 // Tier multipliers — configurable via rate cards, these are the defaults.
 export const TIER_MULTIPLIER: Record<Tier, number> = {

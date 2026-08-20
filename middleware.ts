@@ -15,8 +15,9 @@ const AUTHED_PREFIXES = [
   "/profile",
 ];
 
-// Routes that require ops/admin.
+// Routes that require internal staff (ops / admin / project_manager).
 const STAFF_PREFIXES = ["/admin"];
+const STAFF_ROLES = ["ops", "admin", "project_manager"];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
@@ -32,7 +33,7 @@ export default auth((req) => {
     return NextResponse.redirect(url);
   }
 
-  if (needsStaff && role !== "ops" && role !== "admin") {
+  if (needsStaff && !STAFF_ROLES.includes(role as string)) {
     return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
   }
 

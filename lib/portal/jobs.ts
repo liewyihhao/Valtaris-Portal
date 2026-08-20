@@ -79,3 +79,6 @@ export async function reconcileFromLabelStudio() {
   // token, diff against WebhookEvent/Payout, and ingest missing items.
   return { reconciled: 0, note: "stub — wire the Label Studio Annotations API" };
 }
+
+// Applicant data-lifecycle maintenance (11mo warn / 12mo purge).
+export { runDormancyWarnings, runDormancyPurge } from "./lifecycle";

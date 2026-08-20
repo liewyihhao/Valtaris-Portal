@@ -26,15 +26,22 @@ model User {
   id              String    @id @default(cuid())
   email           String    @unique
   passwordHash    String
-  // Role: applicant | annotator | ops | admin
+  // Role: applicant | annotator | project_manager | ops | admin
   role            String    @default("applicant")
   country         String
   primaryLanguage String
   fullName        String?
+  phone           String?
   emailVerifiedAt DateTime?
+  phoneVerifiedAt DateTime?
   // Funnel position: eligibility | questionnaire | qualification_test |
   //                  guidelines | agreements | approved
   applicationStage String   @default("eligibility")
+  // Lifecycle: active | dormant | suspended | purged
+  status          String    @default("active")
+  // Last meaningful activity — drives the 11-month warn / 12-month purge.
+  lastActiveAt    DateTime?
+  dormantNotifiedAt DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -50,8 +57,15 @@ model User {
   labelStudioAccount    LabelStudioAccount?
   auditLogs             AuditLog[]        @relation("actor")
   eligibility           EligibilityCheck?
+  annotatorLanguages    AnnotatorLanguage[]
+  availability          Availability?
+  trustProfile          TrustProfile?
+  taxProfile            TaxProfile?
+  performanceMetrics    PerformanceMetric[]
+  cohortMemberships     CohortMember[]
 
   @@index([role])
+  @@index([status, lastActiveAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -76,6 +90,7 @@ model Track {
   rateCards          RateCard[]
   taskBatches        TaskBatch[]
   labelStudioMappings LabelStudioMapping[]
+  performanceMetrics PerformanceMetric[]
 }
 
 // The verified skill record. IMPORTANT: `tier` is ONLY writable by the
@@ -245,8 +260,9 @@ model TaskBatch {
   isActive             Boolean  @default(true)
   createdAt            DateTime @default(now())
 
-  track   Track   @relation(fields: [trackId], references: [id])
-  payouts Payout[]
+  track    Track    @relation(fields: [trackId], references: [id])
+  payouts  Payout[]
+  cohorts  Cohort[]
 
   @@index([trackId])
 }
@@ -270,15 +286,19 @@ model Payout {
   labelStudioTaskId       String?
   labelStudioAnnotationId String?
   itemCount         Int      @default(0)
+  // Set when this payout is swept into a scheduled payout run.
+  payoutRunId       String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   taskBatch TaskBatch @relation(fields: [taskBatchId], references: [id])
   appeal    Appeal?
+  payoutRun PayoutRun? @relation(fields: [payoutRunId], references: [id])
 
   @@index([userId, status])
   @@index([status, holdExpiresAt])
+  @@index([payoutRunId])
 }
 
 model PayoutMethod {
@@ -427,4 +447,158 @@ model WebhookEvent {
   receivedAt         DateTime @default(now())
 
   @@unique([source, labelStudioAnnotationId, eventType])
+}
+
+// ===========================================================================
+// TALENT POOL — normalized profile, trust/KYC, tax, performance, cohorts
+// ===========================================================================
+
+// Languages promoted out of QuestionnaireResponse JSON so they're indexable
+// for talent filtering. Proficiency: Native | Professional fluency | Conversational
+model AnnotatorLanguage {
+  id          String  @id @default(cuid())
+  userId      String
+  language    String
+  proficiency String
+  isPrimary   Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, language])
+  @@index([language, proficiency])
+}
+
+model Availability {
+  id           String  @id @default(cuid())
+  userId       String  @unique
+  hoursPerWeek Int?
+  timezone     String?
+  surgeOptIn   Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([surgeOptIn])
+}
+
+// Consolidated trust signals. kycLevel: none | email_phone | id_biometric
+// (id_biometric is required to unlock T3 / sensitive-data tracks).
+model TrustProfile {
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  kycLevel           String    @default("none")
+  emailVerified      Boolean   @default(false)
+  phoneVerified      Boolean   @default(false)
+  idVerifiedAt       DateTime?
+  biometricVerifiedAt DateTime?
+  // Provider-side reference only — we never store raw ID/biometric data.
+  kycProviderRef     String?
+  // sanctionsStatus: pending | cleared | flagged
+  sanctionsStatus    String    @default("pending")
+  sanctionsCheckedAt DateTime?
+  riskScore          Int?
+  updatedAt          DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([kycLevel])
+  @@index([sanctionsStatus])
+}
+
+// Country-based tax identification. taxIdType: w9 | w8ben | local_tin
+// The raw tax id is tokenized/encrypted elsewhere; only last-4 + a token ref here.
+model TaxProfile {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  country      String
+  taxIdType    String
+  localTinType String?   // e.g. "SSN", "EIN", "PAN" (India), "LHDN" (Malaysia)
+  taxIdLast4   String?
+  taxIdTokenRef String?
+  formReference String?
+  completedAt  DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([country])
+}
+
+// Ongoing quality metrics per annotator×track. Populated by the QA/webhook
+// pipeline in a later phase; the model exists now so selection can use it.
+model PerformanceMetric {
+  id                     String   @id @default(cuid())
+  userId                 String
+  trackId                String
+  goldPassRate           Float?
+  interAnnotatorAgreement Float?
+  rejectionRate          Float?
+  appealRate             Float?
+  throughput             Float?   // items per hour
+  rollingAccuracy        Float?
+  windowStart            DateTime?
+  windowEnd              DateTime?
+  updatedAt              DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track Track @relation(fields: [trackId], references: [id])
+
+  @@unique([userId, trackId])
+  @@index([trackId, rollingAccuracy])
+}
+
+// A named selection of annotators assembled by a PM for a client project.
+model Cohort {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  clientName   String?
+  // Snapshot of the filter criteria used to build it (for provenance).
+  criteria     Json?
+  // Status: draft | assigned | archived
+  status       String   @default("draft")
+  taskBatchId  String?
+  createdById  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  taskBatch TaskBatch?    @relation(fields: [taskBatchId], references: [id])
+  members   CohortMember[]
+
+  @@index([status])
+}
+
+model CohortMember {
+  id       String   @id @default(cuid())
+  cohortId String
+  userId   String
+  // Status: proposed | confirmed | removed
+  status   String   @default("proposed")
+  addedAt  DateTime @default(now())
+
+  cohort Cohort @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([cohortId, userId])
+  @@index([userId])
+}
+
+// A scheduled payout run that sweeps approved payouts for a period.
+model PayoutRun {
+  id           String    @id @default(cuid())
+  periodStart  DateTime
+  periodEnd    DateTime
+  // Status: draft | approved | executing | completed | failed
+  status       String    @default("draft")
+  cadence      String    @default("weekly")
+  totalAmount  Float     @default(0)
+  payoutCount  Int       @default(0)
+  approvedById String?
+  approvedAt   DateTime?
+  executedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  payouts Payout[]
+
+  @@index([status])
 }
