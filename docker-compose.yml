@@ -1,0 +1,55 @@
+# Local development stack for the Valtaris portal.
+#   docker compose up -d       # start Postgres + Label Studio
+#   npm run db:push && npm run db:seed
+#   npm run dev
+#
+# Label Studio is the annotation *execution engine* only. All access control,
+# qualification, tier, and payout logic lives in the Next.js app — see
+# docs/architecture.md for why (Community Edition has no per-project RBAC).
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: valtaris-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: valtaris
+      POSTGRES_PASSWORD: valtaris
+      POSTGRES_DB: valtaris
+    # Host port 5433 to avoid clashing with any Postgres already on 5432.
+    ports:
+      - "5433:5432"
+    volumes:
+      - valtaris-db-data-v2:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U valtaris"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Self-hosted Label Studio Community Edition for local integration testing.
+  label-studio:
+    image: heartexlabs/label-studio:latest
+    container_name: valtaris-label-studio
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Disable open signup — access is only ever granted via invite link that
+      # the Valtaris app generates AFTER a server-side qualification check.
+      LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK: "true"
+      DJANGO_DB: default
+      POSTGRE_NAME: label_studio
+      POSTGRE_USER: valtaris
+      POSTGRE_PASSWORD: valtaris
+      POSTGRE_PORT: "5432"
+      POSTGRE_HOST: db
+    ports:
+      - "8080:8080"
+    volumes:
+      - valtaris-ls-data:/label-studio/data
+
+volumes:
+  valtaris-db-data-v2:
+  valtaris-ls-data:

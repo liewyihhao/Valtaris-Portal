@@ -1,0 +1,430 @@
+// Valtaris Annotator Portal — Prisma schema
+//
+// Local dev uses SQLite (zero setup — no Docker, no Postgres). Because SQLite
+// has no native enum type, fields that are conceptually enums are modelled as
+// String with the allowed values listed in a comment and enforced at the
+// application layer (see lib/portal/constants.ts for the matching unions).
+//
+// To target PostgreSQL for production instead: set provider = "postgresql",
+// point DATABASE_URL at Postgres, and (optionally) reintroduce enums + @db.Text.
+// See docs/architecture.md for the design rationale.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String
+  // Role: applicant | annotator | ops | admin
+  role            String    @default("applicant")
+  country         String
+  primaryLanguage String
+  fullName        String?
+  emailVerifiedAt DateTime?
+  // Funnel position: eligibility | questionnaire | qualification_test |
+  //                  guidelines | agreements | approved
+  applicationStage String   @default("eligibility")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  qualifications        Qualification[]
+  questionnaireResponses QuestionnaireResponse[]
+  testAttempts          QualificationTestAttempt[]
+  guidelineAcks         GuidelineAcknowledgment[]
+  agreements            Agreement[]
+  payouts               Payout[]
+  payoutMethods         PayoutMethod[]
+  appeals               Appeal[]
+  reviewFlags           ReviewFlag[]
+  labelStudioAccount    LabelStudioAccount?
+  auditLogs             AuditLog[]        @relation("actor")
+  eligibility           EligibilityCheck?
+
+  @@index([role])
+}
+
+// ---------------------------------------------------------------------------
+// Tracks, tiers, qualification
+// ---------------------------------------------------------------------------
+
+model Track {
+  id          String  @id @default(cuid())
+  slug        String  @unique
+  name        String
+  // Domain: text_nlp | image | video | audio | llm_eval | other
+  domain      String
+  description String
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+
+  qualifications     Qualification[]
+  calibrationQs      CalibrationQuestion[]
+  testAttempts       QualificationTestAttempt[]
+  guidelineVersions  GuidelineVersion[]
+  guidelineAcks      GuidelineAcknowledgment[]
+  rateCards          RateCard[]
+  taskBatches        TaskBatch[]
+  labelStudioMappings LabelStudioMapping[]
+}
+
+// The verified skill record. IMPORTANT: `tier` is ONLY writable by the
+// qualification-test scoring service (lib/portal/qualification.ts).
+// The questionnaire flow must never write this table. Enforced at the
+// application layer; see docs/architecture.md.
+model Qualification {
+  id          String   @id @default(cuid())
+  userId      String
+  trackId     String
+  // Tier: T0_trainee | T1_associate | T2_skilled | T3_specialist
+  tier        String   @default("T0_trainee")
+  // Status: in_progress | active | suspended | revoked
+  status      String   @default("in_progress")
+  verifiedAt  DateTime?
+  // Provenance: which test attempt set this tier.
+  sourceAttemptId String?
+  recertDueAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track Track @relation(fields: [trackId], references: [id])
+
+  @@unique([userId, trackId])
+  @@index([trackId, tier])
+}
+
+// ---------------------------------------------------------------------------
+// Questionnaire (self-report + calibration) — routing only, never tier.
+// ---------------------------------------------------------------------------
+
+model QuestionnaireResponse {
+  id              String   @id @default(cuid())
+  userId          String
+  answers         Json
+  calibrationScores Json
+  selfRatings     Json
+  routedTracks    Json
+  mismatchFlag    Boolean  @default(false)
+  mismatchReason  String?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId])
+}
+
+model CalibrationQuestion {
+  id           String  @id @default(cuid())
+  trackId      String
+  domain       String
+  prompt       String
+  // JSON array of option strings; empty for pure free-text items.
+  options      Json
+  // Index into options, or null for rubric-graded free text.
+  correctIndex Int?
+  rubric       String?
+  isActive     Boolean @default(true)
+  createdAt    DateTime @default(now())
+
+  track Track @relation(fields: [trackId], references: [id])
+
+  @@index([trackId, domain])
+}
+
+model QualificationTestAttempt {
+  id                 String   @id @default(cuid())
+  userId             String
+  trackId            String
+  // TestTrack: training_then_foundational | foundational | standard
+  testTrack          String
+  score              Float?   // percent 0-100
+  passed             Boolean?
+  labelStudioProjectId String?
+  startedAt          DateTime @default(now())
+  attemptedAt        DateTime?
+  cooldownUntil      DateTime?
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track Track @relation(fields: [trackId], references: [id])
+
+  @@index([userId, trackId])
+}
+
+// ---------------------------------------------------------------------------
+// Guidelines & agreements
+// ---------------------------------------------------------------------------
+
+model GuidelineVersion {
+  id          String   @id @default(cuid())
+  trackId     String
+  version     Int
+  title       String
+  content     String
+  publishedAt DateTime @default(now())
+  isCurrent   Boolean  @default(false)
+
+  track Track @relation(fields: [trackId], references: [id])
+  acks  GuidelineAcknowledgment[]
+
+  @@unique([trackId, version])
+}
+
+model GuidelineAcknowledgment {
+  id                 String   @id @default(cuid())
+  userId             String
+  trackId            String
+  guidelineVersionId String
+  version            Int
+  acknowledgedAt     DateTime @default(now())
+
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track            Track            @relation(fields: [trackId], references: [id])
+  guidelineVersion GuidelineVersion @relation(fields: [guidelineVersionId], references: [id])
+
+  @@index([userId, trackId])
+}
+
+model Agreement {
+  id              String        @id @default(cuid())
+  userId          String
+  // Type: contractor | nda | tos | tax_w9 | tax_w8ben
+  type            String
+  signedAt        DateTime      @default(now())
+  documentSnapshot String
+  signatureName   String
+  taxData         Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+}
+
+// ---------------------------------------------------------------------------
+// Rate cards, task batches, payouts
+// ---------------------------------------------------------------------------
+
+model RateCard {
+  id                 String   @id @default(cuid())
+  trackId            String
+  taskType           String
+  baseRate           Float
+  version            Int
+  effectiveFrom      DateTime @default(now())
+  floorRate          Float
+  isCurrent          Boolean  @default(false)
+  createdAt          DateTime @default(now())
+
+  track Track @relation(fields: [trackId], references: [id])
+
+  @@unique([trackId, taskType, version])
+  @@index([trackId, taskType])
+}
+
+model TaskBatch {
+  id                   String   @id @default(cuid())
+  trackId              String
+  clientId             String
+  clientName           String
+  taskType             String
+  complexityMultiplier Float    @default(1.0)
+  estimatedItems       Int      @default(0)
+  labelStudioProjectId String?
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+
+  track   Track   @relation(fields: [trackId], references: [id])
+  payouts Payout[]
+
+  @@index([trackId])
+}
+
+model Payout {
+  id                String   @id @default(cuid())
+  userId            String
+  taskBatchId       String
+  grossAmount       Float
+  currency          String   @default("USD")
+  rateCardVersion   Int
+  tierMultiplier    Float
+  // Status: pending_qa | held | approved | paid | rejected | clawed_back
+  status            String   @default("pending_qa")
+  // Reason: failed_gold_task | below_consensus_threshold | guideline_violation | confirmed_fraud
+  reasonCode        String?
+  reasonDetail      String?
+  holdExpiresAt     DateTime?
+  approvedAt        DateTime?
+  paidAt            DateTime?
+  labelStudioTaskId       String?
+  labelStudioAnnotationId String?
+  itemCount         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskBatch TaskBatch @relation(fields: [taskBatchId], references: [id])
+  appeal    Appeal?
+
+  @@index([userId, status])
+  @@index([status, holdExpiresAt])
+}
+
+model PayoutMethod {
+  id             String   @id @default(cuid())
+  userId         String
+  // Provider: payoneer | wise | bank_transfer
+  provider       String
+  accountRef     String
+  currency       String   @default("USD")
+  verifiedAt     DateTime?
+  isActive       Boolean  @default(false)
+  reverifyingUntil DateTime?
+  sanctionsCleared Boolean @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Appeal {
+  id             String   @id @default(cuid())
+  payoutId       String   @unique
+  userId         String
+  reasonCode     String?
+  explanation    String
+  // Status: open | under_review | upheld | denied
+  status         String   @default("open")
+  slaDueAt       DateTime
+  submittedAt    DateTime @default(now())
+  resolvedAt     DateTime?
+  resolutionNote String?
+  resolvedById   String?
+
+  payout Payout @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, slaDueAt])
+}
+
+// ---------------------------------------------------------------------------
+// Eligibility, Label Studio, ops review, audit, jobs
+// ---------------------------------------------------------------------------
+
+model EligibilityCheck {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  ageConfirmed Boolean @default(false)
+  region      String
+  regionEligible Boolean @default(false)
+  deviceType  String?
+  passed      Boolean  @default(false)
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LabelStudioMapping {
+  id                   String  @id @default(cuid())
+  trackId              String
+  clientId             String?
+  labelStudioInstanceUrl String
+  labelStudioProjectId String
+  inviteLink           String?
+  guidelineVersionSynced Int?
+  createdAt            DateTime @default(now())
+
+  track Track @relation(fields: [trackId], references: [id])
+
+  @@index([trackId])
+}
+
+model LabelStudioAccount {
+  id                  String  @id @default(cuid())
+  userId              String  @unique
+  labelStudioUserId   String?
+  labelStudioInstanceUrl String?
+  // JSON array (as a string) of { projectId, trackId, grantedAt, guidelineVersionAcked }.
+  grantedProjects     String  @default("[]")
+  provisionedAt       DateTime?
+  // Provisioning is a manual/semi-automated step in CE — track its state.
+  provisioningStatus  String  @default("pending")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ReviewFlag {
+  id         String   @id @default(cuid())
+  userId     String
+  // Type: self_report_mismatch | identity_reverification | fraud_suspected | appeal | payout_hold_escalation
+  type       String
+  // Status: open | resolved | dismissed
+  status     String   @default("open")
+  context    Json?
+  note       String?
+  createdAt  DateTime @default(now())
+  resolvedAt DateTime?
+  resolvedById String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, type])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  action     String
+  actorId    String?
+  before     Json?
+  after      Json?
+  timestamp  DateTime @default(now())
+
+  actor User? @relation("actor", fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+}
+
+model Job {
+  id          String   @id @default(cuid())
+  type        String
+  payload     Json
+  // Status: queued | running | succeeded | failed
+  status      String   @default("queued")
+  attempts    Int      @default(0)
+  lastError   String?
+  runAt       DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, runAt])
+}
+
+model WebhookEvent {
+  id                 String   @id @default(cuid())
+  source             String   @default("label_studio")
+  eventType          String
+  labelStudioAnnotationId String?
+  labelStudioTaskId  String?
+  labelStudioProjectId String?
+  rawPayload         Json
+  processed          Boolean  @default(false)
+  receivedAt         DateTime @default(now())
+
+  @@unique([source, labelStudioAnnotationId, eventType])
+}
