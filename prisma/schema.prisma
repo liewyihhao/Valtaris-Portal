@@ -391,6 +391,15 @@ model LabelStudioAccount {
   provisionedAt       DateTime?
   // Provisioning is a manual/semi-automated step in CE — track its state.
   provisioningStatus  String  @default("pending")
+  // SSO / Studio access federation (Portal is the identity provider).
+  // studioAccessStatus: not_provisioned | active | blocked | suspended
+  studioAccessStatus  String  @default("not_provisioned")
+  lsUserActive        Boolean @default(false)
+  ssoLinkedAt         DateTime?
+  lastSsoAt           DateTime?
+  // revokedReason: suspended | failed_recert | confirmed_fraud | tax_kyc_lapse
+  revokedReason       String?
+  revokedAt           DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

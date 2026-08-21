@@ -228,7 +228,7 @@ async function main() {
     for (const type of ["contractor", "nda", "tos", "tax_w8ben"] as const) {
       await prisma.agreement.create({ data: { userId: u.id, type, signatureName: name, documentSnapshot: `${type} signed`, taxData: type === "tax_w8ben" ? { legalName: name, taxId: "••••1234", countryOfResidence: country } : undefined } });
     }
-    await prisma.labelStudioAccount.create({ data: { userId: u.id, provisioningStatus: "provisioned", labelStudioUserId: `ls_${u.id.slice(0, 6)}`, labelStudioInstanceUrl: "http://localhost:8080", provisionedAt: new Date() } });
+    await prisma.labelStudioAccount.create({ data: { userId: u.id, provisioningStatus: "provisioned", labelStudioUserId: `ls_${u.id.slice(0, 6)}`, labelStudioInstanceUrl: "http://localhost:8080", provisionedAt: new Date(), studioAccessStatus: "active", lsUserActive: true, ssoLinkedAt: new Date() } });
     await prisma.payoutMethod.create({ data: { userId: u.id, provider: "payoneer", accountRef: "••••4321", currency: "USD", isActive: true, verifiedAt: new Date(), sanctionsCleared: true } });
     return u;
   }

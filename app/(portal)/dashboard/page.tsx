@@ -6,13 +6,27 @@ import { Badge } from "@/components/portal/ui/Badge";
 import { Table, THead, TH, TBody, TR, TD, EmptyRow } from "@/components/portal/ui/Table";
 import { Alert } from "@/components/portal/ui/Alert";
 import { getEarningsSummary } from "@/lib/portal/earnings";
+import { studioEligible } from "@/lib/portal/studio-access";
 import { formatMoney } from "@/lib/portal/labels";
 import { TIER_LABEL, DOMAIN_LABEL, type Tier } from "@/lib/portal/constants";
 
-export default async function DashboardPage() {
+const STUDIO_REASON: Record<string, string> = {
+  no_passed_qualification: "You need to pass a qualification exam before you can start labelling.",
+  not_approved: "Finish your application (agreements & tax) to unlock the workspace.",
+  recert_lapsed: "A recertification is due — renew it to regain access.",
+  agreements_incomplete: "Sign your contractor agreement to continue.",
+  tax_incomplete: "Complete your tax details before starting paid work.",
+  kyc_insufficient_for_tier: "Your tier needs ID + biometric verification first.",
+  sanctions_flagged: "Your account is under review.",
+  account_suspended: "Your account is suspended. Contact support.",
+};
+
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ studio?: string; reason?: string }> }) {
   const user = await requireUser();
   // Not yet approved → keep them in the funnel.
   if (user.role === "applicant") redirect("/apply");
+  const sp = await searchParams;
+  const studio = await studioEligible(user.id);
 
   const quals = await prisma.qualification.findMany({
     where: { userId: user.id, status: "active" },
@@ -37,8 +51,29 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-p-primary">Task hub</h1>
-      <p className="mt-1 text-sm text-p-secondary">Your qualified tracks and the batches you can pick up.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-p-primary">Task hub</h1>
+          <p className="mt-1 text-sm text-p-secondary">Your qualified tracks and the batches you can pick up.</p>
+        </div>
+        {studio.eligible ? (
+          <a href="/api/studio/sso" className="inline-flex items-center gap-2 rounded-lg bg-p-accent px-4 py-2.5 text-sm font-semibold text-[#08111f] hover:bg-p-accent-hover">
+            Start labelling →
+          </a>
+        ) : (
+          <span className="rounded-lg border border-p-border px-4 py-2.5 text-sm text-p-disabled" title={studio.reasons.join(", ")}>
+            Studio locked
+          </span>
+        )}
+      </div>
+
+      {(sp.studio === "blocked" || !studio.eligible) && (
+        <div className="mt-4">
+          <Alert tone="warning" title="Studio access locked">
+            {STUDIO_REASON[sp.reason ?? studio.reasons[0] ?? ""] ?? "Complete the outstanding steps to unlock the labelling workspace."}
+          </Alert>
+        </div>
+      )}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <StatCard label="Earned this week" value={formatMoney(paidThisWeek)} sub="paid out" />

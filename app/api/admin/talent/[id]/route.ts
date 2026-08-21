@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requirePM } from "@/lib/portal/session";
 import { writeAudit } from "@/lib/portal/audit";
 import { getKycProvider } from "@/lib/portal/kyc";
+import { setStudioAccess } from "@/lib/portal/studio-access";
 
 const schema = z.object({
   action: z.enum(["suspend", "reactivate", "request_reverification", "trigger_recert"]),
@@ -22,8 +23,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   if (a === "suspend") {
     await prisma.user.update({ where: { id }, data: { status: "suspended" } });
+    // Revoke Studio access immediately.
+    await setStudioAccess(id, "suspended", "suspended");
   } else if (a === "reactivate") {
     await prisma.user.update({ where: { id }, data: { status: "active", lastActiveAt: new Date() } });
+    await setStudioAccess(id, "active");
   } else if (a === "request_reverification") {
     // Kick off (stubbed) KYC and flag for the ops queue. We never store raw ID data.
     const { providerRef } = await getKycProvider().startIdBiometric({ userId: id });
