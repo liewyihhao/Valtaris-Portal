@@ -16,35 +16,40 @@ export async function requireUser() {
   return user;
 }
 
-// Internal staff roles that may enter the ops/PM console (Zone D).
-const STAFF_ROLES = ["ops", "admin", "project_manager"];
-// Payout, review, and compliance duties.
-const OPS_ROLES = ["ops", "admin"];
-// Talent-pool / cohort management (PMs own pool selection; admin + ops too).
-const PM_ROLES = ["project_manager", "admin", "ops"];
+// Internal staff roles that may enter the ops/PM console (Zone D). "internal"
+// is a granular staffer whose access comes entirely from InternalCapability rows.
+const STAFF_ROLES = ["ops", "admin", "project_manager", "internal"];
+const OPS_FAMILY_CAPS = ["trust_safety", "finance_ops", "assessment_ops", "validator_ops", "compliance_ops", "support", "training_author", "executive"];
+
+async function hasAnyCap(userId: string, caps: string[]): Promise<boolean> {
+  return (await prisma.internalCapability.count({ where: { userId, capability: { in: caps } } })) > 0;
+}
 
 /** Require any internal staff; redirect otherwise. Server-side enforcement for Zone D. */
 export async function requireStaff() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (!STAFF_ROLES.includes(user.role)) redirect("/dashboard");
-  return user;
+  if (["ops", "admin", "project_manager"].includes(user.role)) return user;
+  if (user.role === "internal" && (await prisma.internalCapability.count({ where: { userId: user.id } })) > 0) return user;
+  redirect("/dashboard");
 }
 
-/** Require ops/admin (payout, review, compliance). */
+/** Require ops/admin family (payout, review, compliance) or a matching capability. */
 export async function requireOps() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (!OPS_ROLES.includes(user.role)) redirect("/admin/talent");
-  return user;
+  if (user.role === "ops" || user.role === "admin") return user;
+  if (await hasAnyCap(user.id, OPS_FAMILY_CAPS)) return user;
+  redirect("/admin/talent");
 }
 
-/** Require project_manager/admin/ops (talent + cohort management). */
+/** Require recruiter-family (talent + cohort management). */
 export async function requirePM() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (!PM_ROLES.includes(user.role)) redirect("/admin");
-  return user;
+  if (["project_manager", "admin", "ops"].includes(user.role)) return user;
+  if (await hasAnyCap(user.id, ["recruiter"])) return user;
+  redirect("/admin");
 }
 
 export function isStaff(role: string | undefined): boolean {

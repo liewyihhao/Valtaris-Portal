@@ -14,6 +14,14 @@ async function main() {
     prisma.auditLog.deleteMany(),
     prisma.webhookEvent.deleteMany(),
     prisma.job.deleteMany(),
+    prisma.notification.deleteMany(),
+    prisma.notificationPref.deleteMany(),
+    prisma.supportTicket.deleteMany(),
+    prisma.workSummary.deleteMany(),
+    prisma.lessonProgress.deleteMany(),
+    prisma.lesson.deleteMany(),
+    prisma.trainingCourse.deleteMany(),
+    prisma.internalCapability.deleteMany(),
     prisma.reviewAssignment.deleteMany(),
     prisma.validatorCapability.deleteMany(),
     prisma.cohortMember.deleteMany(),
@@ -360,6 +368,43 @@ async function main() {
     },
   });
   await prisma.payout.update({ where: { id: paidPayout.id }, data: { payoutRunId: run.id } });
+
+  // --- Phase 2: internal staff (role-scoped capabilities) ------------------
+  const staff: [string, string, string[]][] = [
+    ["recruiter@valtaris.ai", "Rae Cruiter", ["recruiter"]],
+    ["support@valtaris.ai", "Sam Support", ["support"]],
+    ["finance@valtaris.ai", "Fin Ops", ["finance_ops"]],
+    ["founder@valtaris.ai", "The Founder", ["executive"]],
+    ["training@valtaris.ai", "Tess Trainer", ["training_author", "assessment_ops"]],
+  ];
+  for (const [email, name, caps] of staff) {
+    const u = await prisma.user.create({ data: { email, passwordHash: hash, role: "internal", country: "Malaysia", primaryLanguage: "English", fullName: name, emailVerifiedAt: new Date(), applicationStage: "approved" } });
+    for (const c of caps) await prisma.internalCapability.create({ data: { userId: u.id, capability: c } });
+  }
+
+  // --- Phase 2: Learning Center courses ------------------------------------
+  const basics = await prisma.trainingCourse.create({ data: { title: "Valtaris Basics", description: "Platform conduct, how pay & appeals work, fraud policy.", isMandatory: true, version: 1 } });
+  await prisma.lesson.create({ data: { courseId: basics.id, order: 1, title: "How pay works", content: "Your pay = base rate × task complexity × your tier multiplier. Every payout shows a status and, if reduced, a specific reason code you can appeal.\n\nThere is a published floor rate per task type — pay is never a race to the bottom." } });
+  await prisma.lesson.create({ data: { courseId: basics.id, order: 2, title: "Quality, appeals & fraud", content: "Work goes through a quality check before it's finalized. Sampled or probation work may be reviewed by a validator. Anything reduced carries a reason code and a 3-business-day appeal path.\n\nAI-assisted answers are prohibited and detectable.", hasKnowledgeCheck: true, checkPrompt: "If a payout is rejected, what should you rely on?", checkOptions: ["A vague 'inaccurate work' note", "A specific reason code + the appeal flow", "Nothing, it's final"], checkCorrect: 1 } });
+  const textCourse = await prisma.trainingCourse.create({ data: { trackId: textTrack.id, title: "Text / NLP essentials", description: "Sentiment, sarcasm, content moderation edge cases.", version: 1 } });
+  await prisma.lesson.create({ data: { courseId: textCourse.id, order: 1, title: "Label intent, not surface words", content: "\"Great, another delay. Love it.\" is Sarcastic-Negative, not Positive. Read the whole item; tone and negation change meaning.", hasKnowledgeCheck: true, checkPrompt: "\"The venue was fine, nothing special.\" — best label?", checkOptions: ["Positive", "Neutral", "Negative"], checkCorrect: 1 } });
+
+  // t2 completed the Basics course.
+  const basicsLessons = await prisma.lesson.findMany({ where: { courseId: basics.id } });
+  for (const l of basicsLessons) await prisma.lessonProgress.create({ data: { userId: t2.id, lessonId: l.id, status: "complete", completedAt: new Date() } });
+
+  // --- Phase 2: notifications, a support ticket, work summaries ------------
+  await prisma.notification.create({ data: { userId: t2.id, category: "payout", title: "Payout sent", body: "Your weekly payout of $92.00 was sent to Payoneer.", deepLink: "/earnings" } });
+  await prisma.notification.create({ data: { userId: t2.id, type: "lifecycle", category: "recert", title: "Recertification due soon", body: "Your Text/NLP certification is due for a refresh in 30 days.", deepLink: "/profile" } });
+  await prisma.notification.create({ data: { userId: t2.id, type: "broadcast", category: "announcement", title: "Guideline v2 published", body: "Text/NLP guidelines were updated — please re-acknowledge before your next batch.", deepLink: "/apply/guidelines" } });
+  await prisma.supportTicket.create({ data: { userId: t1.id, category: "payout_issue", subject: "Payout smaller than expected", body: "My last sentiment batch paid less than the rate card suggests — can you check?", priority: "high" } });
+
+  await prisma.workSummary.create({ data: { userId: t2.id, periodStart: new Date(now.getTime() - 14 * 864e5), periodEnd: new Date(now.getTime() - 7 * 864e5), taskType: "Sentiment tagging", unitsCompleted: 520, unitsApproved: 505, unitsRejected: 15, avgQualityScore: 0.9, sourceSystem: "internal" } });
+  await prisma.workSummary.create({ data: { userId: t2.id, periodStart: new Date(now.getTime() - 7 * 864e5), periodEnd: now, taskType: "Sentiment tagging", unitsCompleted: 480, unitsApproved: 470, unitsRejected: 10, avgQualityScore: 0.92, sourceSystem: "internal" } });
+
+  // --- Phase 2: an intake cohort (recruitment funnel analysis) -------------
+  const intake = await prisma.cohort.create({ data: { name: "LATAM referral — Aug", kind: "intake", source: "referral", region: "Mexico", intakeStartDate: new Date("2026-08-01"), intakeEndDate: new Date("2026-08-15"), status: "open", createdById: admin.id } });
+  await prisma.user.update({ where: { id: t2.id }, data: { cohortId: intake.id } });
 
   console.log("Seed complete. Demo login password for all accounts: " + PASSWORD);
   console.log("  admin@valtaris.ai (admin) · ops@valtaris.ai (ops) · pm@valtaris.ai (project manager)");

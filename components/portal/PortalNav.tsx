@@ -11,6 +11,10 @@ import {
   UserCircle,
   ClipboardCheck,
   ShieldCheck,
+  BarChart3,
+  Bell,
+  LifeBuoy,
+  GraduationCap,
   LogOut,
   Menu,
   X,
@@ -23,15 +27,19 @@ type NavItem = { href: string; label: string; icon: typeof Wallet };
 
 const applicantNav: NavItem[] = [
   { href: "/apply", label: "Application", icon: ClipboardCheck },
+  { href: "/learn", label: "Learning Center", icon: GraduationCap },
 ];
 
 const annotatorNav: NavItem[] = [
   { href: "/dashboard", label: "Task hub", icon: LayoutDashboard },
   { href: "/validate", label: "Validate", icon: ShieldCheck },
+  { href: "/my-work", label: "My work", icon: BarChart3 },
   { href: "/earnings", label: "Earnings", icon: Wallet },
   { href: "/payment-details", label: "Payment details", icon: CreditCard },
   { href: "/appeals", label: "Appeals", icon: Scale },
+  { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/profile", label: "Profile & tracks", icon: UserCircle },
+  { href: "/help", label: "Help", icon: LifeBuoy },
 ];
 
 export function PortalNav({
@@ -39,11 +47,13 @@ export function PortalNav({
   email,
   approved,
   isValidator,
+  unread,
 }: {
   role: string;
   email: string;
   approved: boolean;
   isValidator?: boolean;
+  unread?: number;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -96,14 +106,17 @@ export function PortalNav({
               )}
             >
               <Icon className="h-4 w-4" aria-hidden />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.href === "/notifications" && !!unread && unread > 0 && (
+                <span className="rounded-full bg-p-accent px-1.5 text-[10px] font-semibold text-[#08111f]">{unread}</span>
+              )}
             </Link>
           );
         })}
 
-        {(role === "ops" || role === "admin") && (
+        {(role === "ops" || role === "admin" || role === "project_manager" || role === "internal") && (
           <Link
-            href="/admin"
+            href="/admin/home"
             onClick={() => setOpen(false)}
             className="mt-1 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-warning hover:bg-p-surface-2"
           >

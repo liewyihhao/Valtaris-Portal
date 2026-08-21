@@ -32,6 +32,8 @@ model User {
   primaryLanguage String
   fullName        String?
   phone           String?
+  // Intake cohort (recruitment batch — source/region/date grouping).
+  cohortId        String?
   emailVerifiedAt DateTime?
   phoneVerifiedAt DateTime?
   // Funnel position: eligibility | questionnaire | qualification_test |
@@ -66,9 +68,17 @@ model User {
   submissions           Submission[]
   validatorCapabilities ValidatorCapability[]
   reviewAssignments     ReviewAssignment[]    @relation("validator")
+  internalCapabilities  InternalCapability[]
+  lessonProgress        LessonProgress[]
+  notifications         Notification[]
+  notificationPrefs     NotificationPref[]
+  supportTickets        SupportTicket[]       @relation("ticketUser")
+  workSummaries         WorkSummary[]
+  intakeCohort          Cohort?               @relation("intakeCohort", fields: [cohortId], references: [id])
 
   @@index([role])
   @@index([status, lastActiveAt])
+  @@index([cohortId])
 }
 
 // ---------------------------------------------------------------------------
@@ -96,6 +106,7 @@ model Track {
   performanceMetrics PerformanceMetric[]
   submissions        Submission[]
   validatorCapabilities ValidatorCapability[]
+  trainingCourses    TrainingCourse[]
 }
 
 // The verified skill record. IMPORTANT: `tier` is ONLY writable by the
@@ -524,6 +535,144 @@ model ReviewAssignment {
 }
 
 // ===========================================================================
+// HR PORTAL PHASE 2 — LMS, notifications, support, internal roles, reporting
+// ===========================================================================
+
+// Internal-staff capabilities (additive, same identity model as annotators).
+// capability: recruiter | training_author | assessment_ops | finance_ops |
+//             trust_safety | validator_ops | support | compliance_ops | executive
+model InternalCapability {
+  id         String   @id @default(cuid())
+  userId     String
+  capability String
+  grantedAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, capability])
+  @@index([capability])
+}
+
+// Learning Center. Course = ordered lessons; knowledge-checks are formative and
+// NEVER grant tier (only the certification exam does).
+model TrainingCourse {
+  id          String   @id @default(cuid())
+  trackId     String?  // null → platform-wide "Valtaris Basics"
+  title       String
+  description String?
+  version     Int      @default(1)
+  isMandatory Boolean  @default(false)
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  track   Track?   @relation(fields: [trackId], references: [id])
+  lessons Lesson[]
+
+  @@index([trackId])
+}
+
+model Lesson {
+  id              String  @id @default(cuid())
+  courseId        String
+  order           Int
+  title           String
+  content         String
+  hasKnowledgeCheck Boolean @default(false)
+  checkPrompt     String?
+  checkOptions    Json?
+  checkCorrect    Int?
+
+  course   TrainingCourse   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progress LessonProgress[]
+
+  @@unique([courseId, order])
+}
+
+model LessonProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  lessonId    String
+  status      String   @default("in_progress") // not_started | in_progress | complete
+  completedAt DateTime?
+  updatedAt   DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+}
+
+// Future-bridge inbound contract. sourceSystem = "internal" until the LS bridge.
+model WorkSummary {
+  id             String   @id @default(cuid())
+  userId         String
+  periodStart    DateTime
+  periodEnd      DateTime
+  taskType       String
+  unitsCompleted Int      @default(0)
+  unitsApproved  Int      @default(0)
+  unitsRejected  Int      @default(0)
+  avgQualityScore Float?
+  sourceSystem   String   @default("internal")
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, periodEnd])
+}
+
+// In-app notifications (async-dispatched). Links to detail; never replaces the
+// in-context reason code.
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   @default("transactional") // transactional | lifecycle | broadcast
+  category  String
+  urgency   String   @default("normal")
+  title     String
+  body      String
+  deepLink  String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+model NotificationPref {
+  id           String  @id @default(cuid())
+  userId       String
+  category     String
+  emailEnabled Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+}
+
+// Support tickets. exam_dispute surfaces the existing appeal flow, not a second
+// dispute process.
+model SupportTicket {
+  id         String   @id @default(cuid())
+  userId     String
+  category   String   // payout_issue | exam_dispute | account_access | technical_bug | policy_question | other
+  subject    String
+  body       String
+  status     String   @default("open") // open | in_progress | resolved | closed
+  priority   String   @default("normal")
+  assignedTo String?
+  relatedAppealId String?
+  resolutionNote  String?
+  createdAt  DateTime @default(now())
+  resolvedAt DateTime?
+
+  user User @relation("ticketUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, category])
+}
+
+// ===========================================================================
 // TALENT POOL — normalized profile, trust/KYC, tax, performance, cohorts
 // ===========================================================================
 
@@ -621,14 +770,24 @@ model PerformanceMetric {
 }
 
 // A named selection of annotators assembled by a PM for a client project.
+// Dual-purpose: a PM talent-selection cohort (members via CohortMember) OR a
+// recruitment intake batch (annotators grouped at application time via
+// User.cohortId). kind distinguishes them.
 model Cohort {
   id           String   @id @default(cuid())
   name         String
   description  String?
   clientName   String?
+  // kind: selection | intake
+  kind         String   @default("selection")
+  // Intake-batch attributes (recruitment funnel analysis).
+  source       String?  // referral | paid | organic | ...
+  region       String?
+  intakeStartDate DateTime?
+  intakeEndDate   DateTime?
   // Snapshot of the filter criteria used to build it (for provenance).
   criteria     Json?
-  // Status: draft | assigned | archived
+  // Status: draft | assigned | archived | open | closed
   status       String   @default("draft")
   taskBatchId  String?
   createdById  String
@@ -637,8 +796,10 @@ model Cohort {
 
   taskBatch TaskBatch?    @relation(fields: [taskBatchId], references: [id])
   members   CohortMember[]
+  intakeUsers User[]      @relation("intakeCohort")
 
   @@index([status])
+  @@index([kind])
 }
 
 model CohortMember {

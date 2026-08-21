@@ -17,6 +17,10 @@ export async function runQueuedJobs(limit = 50) {
     await prisma.job.update({ where: { id: job.id }, data: { status: "running", attempts: { increment: 1 } } });
     try {
       if (job.type === "qa_check") await handleQaCheck(job.payload as { payoutId: string; goldCorrect: boolean | null });
+      else if (job.type === "broadcast_notification") {
+        const { runBroadcast } = await import("./notify");
+        await runBroadcast(job.payload as { userIds: string[]; category: string; title: string; body: string; deepLink?: string });
+      }
       await prisma.job.update({ where: { id: job.id }, data: { status: "succeeded" } });
       processed += 1;
     } catch (e) {

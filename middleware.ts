@@ -17,7 +17,7 @@ const AUTHED_PREFIXES = [
 
 // Routes that require internal staff (ops / admin / project_manager).
 const STAFF_PREFIXES = ["/admin"];
-const STAFF_ROLES = ["ops", "admin", "project_manager"];
+const STAFF_ROLES = ["ops", "admin", "project_manager", "internal"];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
