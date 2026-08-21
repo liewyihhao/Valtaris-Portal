@@ -64,6 +64,8 @@ model User {
   performanceMetrics    PerformanceMetric[]
   cohortMemberships     CohortMember[]
   submissions           Submission[]
+  validatorCapabilities ValidatorCapability[]
+  reviewAssignments     ReviewAssignment[]    @relation("validator")
 
   @@index([role])
   @@index([status, lastActiveAt])
@@ -93,6 +95,7 @@ model Track {
   labelStudioMappings LabelStudioMapping[]
   performanceMetrics PerformanceMetric[]
   submissions        Submission[]
+  validatorCapabilities ValidatorCapability[]
 }
 
 // The verified skill record. IMPORTANT: `tier` is ONLY writable by the
@@ -298,6 +301,7 @@ model Payout {
   taskBatch TaskBatch @relation(fields: [taskBatchId], references: [id])
   appeal    Appeal?
   payoutRun PayoutRun? @relation(fields: [payoutRunId], references: [id])
+  reviewAssignments ReviewAssignment[]
 
   @@index([userId, status])
   @@index([status, holdExpiresAt])
@@ -464,6 +468,59 @@ model WebhookEvent {
   receivedAt         DateTime @default(now())
 
   @@unique([source, labelStudioAnnotationId, eventType])
+}
+
+// ===========================================================================
+// VALIDATOR ROLE — an additive capability on an existing annotator account.
+// One identity, one earnings ledger; validating is the rung above T2 Skilled.
+// ===========================================================================
+
+// Reviewer standing per track. IMPORTANT: only writable by the validator
+// calibration-exam scoring service (lib/portal/validator.ts) — same invariant
+// as Qualification. Eligibility is derived from the linked Qualification.tier≥T2.
+model ValidatorCapability {
+  id                   String   @id @default(cuid())
+  userId               String
+  trackId              String
+  // Status: active | paused | revoked
+  status               String   @default("active")
+  calibrationExamScore Float?
+  lastCalibrationCheckAt DateTime?
+  grantedAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track Track @relation(fields: [trackId], references: [id])
+
+  @@unique([userId, trackId])
+  @@index([trackId, status])
+}
+
+// A submission routed to a Validator for human review. The Validator's
+// decision advances the payout state machine.
+model ReviewAssignment {
+  id                    String   @id @default(cuid())
+  payoutId              String
+  validatorId           String?
+  labelStudioReviewTaskId String?
+  // routedReason: probation | sample | failed_auto_check | appeal | spotcheck
+  routedReason          String
+  // decision: approve | reject | correction_requested | escalate (null = pending)
+  decision              String?
+  reasonCode            String?
+  reasonDetail          String?
+  // A pre-graded calibration review inserted into a Validator's queue.
+  isCalibration         Boolean  @default(false)
+  calibrationExpected   String?  // expected decision for a calibration item
+  slaDueAt              DateTime?
+  createdAt             DateTime @default(now())
+  decidedAt             DateTime?
+
+  payout    Payout @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  validator User?  @relation("validator", fields: [validatorId], references: [id])
+
+  @@index([validatorId, decision])
+  @@index([payoutId])
 }
 
 // ===========================================================================

@@ -12,6 +12,9 @@ export const PAYOUT_STATUS_META: Record<
   { label: string; intent: BadgeIntent }
 > = {
   pending_qa: { label: "Pending QA", intent: "warning" },
+  pending_human_review: { label: "In human review", intent: "warning" },
+  correction_requested: { label: "Correction requested", intent: "warning" },
+  escalated: { label: "Escalated to ops", intent: "info" },
   held: { label: "Held — in review", intent: "warning" },
   approved: { label: "Approved", intent: "info" },
   paid: { label: "Paid", intent: "success" },
@@ -24,6 +27,7 @@ export const REASON_CODE_LABEL: Record<PayoutReasonCode, string> = {
   below_consensus_threshold: "Below consensus threshold",
   guideline_violation: "Guideline violation",
   confirmed_fraud: "Confirmed fraud",
+  no_response_after_correction_request: "No response after correction request",
 };
 
 export function formatReason(

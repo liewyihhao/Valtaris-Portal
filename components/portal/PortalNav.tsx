@@ -10,6 +10,7 @@ import {
   Scale,
   UserCircle,
   ClipboardCheck,
+  ShieldCheck,
   LogOut,
   Menu,
   X,
@@ -26,6 +27,7 @@ const applicantNav: NavItem[] = [
 
 const annotatorNav: NavItem[] = [
   { href: "/dashboard", label: "Task hub", icon: LayoutDashboard },
+  { href: "/validate", label: "Validate", icon: ShieldCheck },
   { href: "/earnings", label: "Earnings", icon: Wallet },
   { href: "/payment-details", label: "Payment details", icon: CreditCard },
   { href: "/appeals", label: "Appeals", icon: Scale },
@@ -36,17 +38,21 @@ export function PortalNav({
   role,
   email,
   approved,
+  isValidator,
 }: {
   role: string;
   email: string;
   approved: boolean;
+  isValidator?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
   // Approved annotators get the working nav; applicants get the funnel link.
-  // Show both once approved so the funnel-entry (add a track) stays reachable.
-  const items = approved ? annotatorNav : applicantNav;
+  // The Validate item only appears with an active ValidatorCapability.
+  const items = (approved ? annotatorNav : applicantNav).filter(
+    (i) => i.href !== "/validate" || isValidator
+  );
 
   return (
     <>

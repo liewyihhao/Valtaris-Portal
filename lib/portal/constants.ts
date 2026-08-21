@@ -16,6 +16,9 @@ export type ApplicationStage =
 export type SelfRating = "Extensive" | "Moderate" | "Basic" | "None";
 export type PayoutStatus =
   | "pending_qa"
+  | "pending_human_review"
+  | "correction_requested"
+  | "escalated"
   | "held"
   | "approved"
   | "paid"
@@ -25,7 +28,11 @@ export type PayoutReasonCode =
   | "failed_gold_task"
   | "below_consensus_threshold"
   | "guideline_violation"
-  | "confirmed_fraud";
+  | "confirmed_fraud"
+  | "no_response_after_correction_request";
+export type ValidatorStatus = "active" | "paused" | "revoked";
+export type ReviewRoutedReason = "probation" | "sample" | "failed_auto_check" | "appeal" | "spotcheck";
+export type ReviewDecision = "approve" | "reject" | "correction_requested" | "escalate";
 export type Role = "applicant" | "annotator" | "project_manager" | "ops" | "admin";
 export type AnnotatorStatus = "active" | "dormant" | "suspended" | "purged";
 export type KycLevel = "none" | "email_phone" | "id_biometric";
@@ -85,6 +92,14 @@ export const CALIBRATION_ROUTING = {
   standard: 70, // >=70 → STANDARD test (targets T1/T2)
   foundational: 40, // >=40 → FOUNDATIONAL test (T1); below → training first
 } as const;
+
+// Validator role.
+export const VALIDATOR_MIN_TIER: Tier = "T2_skilled"; // T2+ may validate
+export const VALIDATOR_PASS_THRESHOLD = 85; // % on the calibration exam
+export const VALIDATOR_CALIBRATION_SAMPLE_RATE = 0.05; // 1-in-20 gold reviews
+export const REVIEW_SAMPLE_RATE = 0.15; // steady-state sampled review %
+export const REVIEW_TASK_PREFIX = "review:"; // rate-card taskType for review pay
+export const CORRECTION_WINDOW_HOURS = 48;
 
 // Payout policy.
 export const MIN_PAYOUT_THRESHOLD_USD = 20;

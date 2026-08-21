@@ -41,8 +41,15 @@ export function isBelowFloor(effectivePerItem: number, floorRate: number): boole
 // -------------------------------------------------------------------------
 
 // Allowed transitions. Anything not listed here is rejected by the guard.
+// The human-review branch (Validator role) extends the original machine.
 const TRANSITIONS: Record<PayoutStatus, PayoutStatus[]> = {
-  pending_qa: ["held", "approved", "rejected"],
+  pending_qa: ["pending_human_review", "held", "approved", "rejected"],
+  // Routed to a Validator (probation / sample / borderline / appeal).
+  pending_human_review: ["approved", "rejected", "correction_requested", "escalated"],
+  // Annotator gets a bounded window to resubmit → re-review, else rejected.
+  correction_requested: ["pending_human_review", "rejected"],
+  // Beyond a Validator's authority → Ops decides.
+  escalated: ["approved", "rejected"],
   held: ["approved", "rejected"], // human review resolves a hold
   approved: ["paid", "clawed_back"],
   paid: ["clawed_back"],

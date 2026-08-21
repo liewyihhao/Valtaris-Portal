@@ -92,6 +92,11 @@ export async function scoreQualificationAttempt(params: {
       before: before ?? undefined,
       after: { tier, status: "active", sourceAttemptId: attempt.id },
     });
+
+    // Validator eligibility is derived from current tier — a drop below T2
+    // suspends the linked capability (integration spec §4).
+    const { syncValidatorWithTier } = await import("./validator");
+    await syncValidatorWithTier(userId, trackId, tier);
   }
 
   return { attempt, tier, passed };

@@ -128,3 +128,29 @@ describe("payout request eligibility", () => {
     expect(canRequestPayout({ availableBalance: 0, accountClosing: true })).toBe(false);
   });
 });
+
+describe("validator human-review branch", () => {
+  it("routes pending_qa to human review", () => {
+    expect(canTransition({ from: "pending_qa", to: "pending_human_review" })).toBe(true);
+  });
+  it("validator approve/reject/correction/escalate from human review", () => {
+    expect(canTransition({ from: "pending_human_review", to: "approved" })).toBe(true);
+    expect(validateTransition({ from: "pending_human_review", to: "rejected", reasonCode: "guideline_violation", reasonDetail: "sarcasm_handling" }).ok).toBe(true);
+    expect(canTransition({ from: "pending_human_review", to: "correction_requested" })).toBe(true);
+    expect(canTransition({ from: "pending_human_review", to: "escalated" })).toBe(true);
+  });
+  it("reject from human review still requires a reason code", () => {
+    expect(validateTransition({ from: "pending_human_review", to: "rejected" }).ok).toBe(false);
+  });
+  it("correction can re-review or expire to rejected", () => {
+    expect(canTransition({ from: "correction_requested", to: "pending_human_review" })).toBe(true);
+    expect(validateTransition({ from: "correction_requested", to: "rejected", reasonCode: "no_response_after_correction_request" }).ok).toBe(true);
+  });
+  it("escalated resolves to approved or rejected by ops", () => {
+    expect(canTransition({ from: "escalated", to: "approved" })).toBe(true);
+    expect(validateTransition({ from: "escalated", to: "rejected", reasonCode: "failed_gold_task" }).ok).toBe(true);
+  });
+  it("does not allow skipping straight from pending_human_review to paid", () => {
+    expect(canTransition({ from: "pending_human_review", to: "paid" })).toBe(false);
+  });
+});

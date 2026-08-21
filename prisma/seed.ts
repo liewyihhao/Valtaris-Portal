@@ -14,6 +14,8 @@ async function main() {
     prisma.auditLog.deleteMany(),
     prisma.webhookEvent.deleteMany(),
     prisma.job.deleteMany(),
+    prisma.reviewAssignment.deleteMany(),
+    prisma.validatorCapability.deleteMany(),
     prisma.cohortMember.deleteMany(),
     prisma.cohort.deleteMany(),
     prisma.submission.deleteMany(),
@@ -271,6 +273,32 @@ async function main() {
   // --- Standalone review flags for the admin queue -------------------------
   await prisma.reviewFlag.create({ data: { userId: t1.id, type: "self_report_mismatch", context: { domains: ["image"], calibrationScores: { image: 25 } }, note: "Self-rating 'Extensive' with 25% calibration on image." } });
   await prisma.reviewFlag.create({ data: { userId: t3.id, type: "identity_reverification", context: { certifications: "Registered nurse" }, note: "Claimed credential — verify before T3 medical track." } });
+
+  // --- Validator role: capabilities, review pay, and a review queue --------
+  // Review rate card + a synthetic "review" batch per track (validator pay).
+  const reviewBatches: Record<string, string> = {};
+  for (const t of tracks) {
+    await prisma.rateCard.create({
+      data: { trackId: t.id, taskType: `review:${t.slug}`, baseRate: 0.15, floorRate: 0.1, version: 1, isCurrent: true },
+    });
+    const rb = await prisma.taskBatch.create({
+      data: { trackId: t.id, clientId: "valtaris-review", clientName: "Internal review", taskType: `review:${t.slug}`, complexityMultiplier: 1.0, estimatedItems: 0 },
+    });
+    reviewBatches[t.id] = rb.id;
+  }
+  // t2 (Maria) and t3 (Wei) are Validators for Text/NLP.
+  await prisma.validatorCapability.create({ data: { userId: t2.id, trackId: textTrack.id, status: "active", calibrationExamScore: 96, lastCalibrationCheckAt: new Date() } });
+  await prisma.validatorCapability.create({ data: { userId: t3.id, trackId: textTrack.id, status: "active", calibrationExamScore: 92, lastCalibrationCheckAt: new Date() } });
+
+  // Submissions from t1 (annotator) routed to human review → appear in the queue.
+  const hr1 = await prisma.payout.create({ data: { userId: t1.id, taskBatchId: batchSent.id, grossAmount: 18.0, currency: "USD", rateCardVersion: 2, tierMultiplier: 1.0, status: "pending_human_review", holdExpiresAt: new Date(now.getTime() + 60 * 3600 * 1000), itemCount: 100, labelStudioTaskId: "t-hr-1" } });
+  const hr2 = await prisma.payout.create({ data: { userId: t1.id, taskBatchId: batchMod.id, grossAmount: 22.0, currency: "USD", rateCardVersion: 2, tierMultiplier: 1.0, status: "pending_human_review", holdExpiresAt: new Date(now.getTime() + 40 * 3600 * 1000), itemCount: 90, labelStudioTaskId: "t-hr-2" } });
+  await prisma.reviewAssignment.create({ data: { payoutId: hr1.id, routedReason: "probation", slaDueAt: new Date(now.getTime() + 3 * 864e5) } });
+  await prisma.reviewAssignment.create({ data: { payoutId: hr2.id, routedReason: "sample", slaDueAt: new Date(now.getTime() + 3 * 864e5) } });
+  // An escalated item (shows in Ops queue) + a completed review by t3.
+  const hr3 = await prisma.payout.create({ data: { userId: t1.id, taskBatchId: batchSent.id, grossAmount: 15.0, currency: "USD", rateCardVersion: 2, tierMultiplier: 1.0, status: "escalated", itemCount: 80 } });
+  await prisma.reviewAssignment.create({ data: { payoutId: hr3.id, validatorId: t3.id, routedReason: "failed_auto_check", decision: "escalate", decidedAt: new Date(), slaDueAt: new Date(now.getTime() + 2 * 864e5) } });
+  await prisma.reviewFlag.create({ data: { userId: t1.id, type: "fraud_suspected", context: { payoutId: hr3.id, escalatedBy: t3.id }, note: "Escalated by validator for ops review." } });
 
   // --- A cohort assembled by the PM for a client project -------------------
   const cohort = await prisma.cohort.create({
