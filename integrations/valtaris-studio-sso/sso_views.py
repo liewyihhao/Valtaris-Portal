@@ -10,6 +10,7 @@ Drop this into the Valtaris-Studio fork as a small app (see README.md). It adds:
 """
 
 import os
+import time
 
 from django.contrib.auth import get_user_model, login
 from django.http import HttpResponseForbidden, JsonResponse
@@ -65,7 +66,11 @@ def sso_login(request):
     user = _get_or_create_user(claims["email"], claims.get("sub", ""))
     if not user.is_active:
         return HttpResponseForbidden("Access revoked")
-    login(request, user)
+    # Label Studio configures multiple auth backends — name the one to use.
+    login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+    # LS's InactivitySessionTimeoutMiddleWare logs out any session missing
+    # 'last_login' (treats it as expired) — set it as LS's own login does.
+    request.session["last_login"] = time.time()
     return redirect(request.GET.get("next") or "/projects/")
 
 
