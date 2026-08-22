@@ -74,6 +74,7 @@ model User {
   notificationPrefs     NotificationPref[]
   supportTickets        SupportTicket[]       @relation("ticketUser")
   workSummaries         WorkSummary[]
+  certificates          Certificate[]
   intakeCohort          Cohort?               @relation("intakeCohort", fields: [cohortId], references: [id])
 
   @@index([role])
@@ -107,6 +108,7 @@ model Track {
   submissions        Submission[]
   validatorCapabilities ValidatorCapability[]
   trainingCourses    TrainingCourse[]
+  certificates       Certificate[]
 }
 
 // The verified skill record. IMPORTANT: `tier` is ONLY writable by the
@@ -896,4 +898,50 @@ model PayoutRun {
   payouts Payout[]
 
   @@index([status])
+}
+
+// ===========================================================================
+// PHASE 3 — CAPACITY FORECASTING + CERTIFICATES
+// ===========================================================================
+
+// A saved capacity-projection snapshot (master design §2.7). Given a projected
+// intake for a track and the track's historical pass/active rates, projects how
+// many active certified annotators it likely yields. Scoped by track (cohortId
+// optional). trackId/cohortId are stored denormalized (a snapshot, not a live
+// FK view). Feeds Recruiter funnel targets + Validator supply planning.
+model WorkforceForecast {
+  id                    String   @id @default(cuid())
+  trackId               String?
+  cohortId              String?
+  projectedIntake       Int
+  historicalPassRate    Float    // 0..1
+  historicalActiveRate  Float    // 0..1
+  projectedActiveOutput Int
+  generatedById         String?
+  generatedAt           DateTime @default(now())
+
+  @@index([trackId])
+  @@index([generatedAt])
+}
+
+// A verifiable certification credential (master design §2.3/§4). Issued when a
+// qualification tier is earned; a public endpoint verifies it by serial. The
+// live Qualification remains the source of truth — verification cross-checks it
+// so a suspended/revoked qualification reads as "not currently valid" even if a
+// certificate row exists.
+model Certificate {
+  id                    String    @id @default(cuid())
+  userId                String
+  trackId               String
+  tier                  String
+  serial                String    @unique // public verification code
+  issuedAt              DateTime  @default(now())
+  revokedAt             DateTime?
+  sourceQualificationId String?
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track Track @relation(fields: [trackId], references: [id])
+
+  @@unique([userId, trackId])
+  @@index([serial])
 }

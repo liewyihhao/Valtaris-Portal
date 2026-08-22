@@ -99,6 +99,10 @@ export async function scoreQualificationAttempt(params: {
     // suspends the linked capability (integration spec §4).
     const { syncValidatorWithTier } = await import("./validator");
     await syncValidatorWithTier(userId, trackId, tier);
+
+    // Issue/refresh the verifiable certificate for the earned tier.
+    const { issueCertificate } = await import("./certificate");
+    await issueCertificate({ userId, trackId, tier, sourceQualificationId: qualification.id });
   }
 
   // Notify the applicant of the exam outcome. Transactional on a pass (high

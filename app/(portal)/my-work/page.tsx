@@ -15,12 +15,14 @@ export default async function MyWorkPage() {
   const user = await requireUser();
   if (user.role === "applicant") redirect("/apply");
 
-  const [quals, summaries, reviews, earnings] = await Promise.all([
+  const [quals, summaries, reviews, earnings, certificates] = await Promise.all([
     prisma.qualification.findMany({ where: { userId: user.id }, include: { track: true } }),
     prisma.workSummary.findMany({ where: { userId: user.id }, orderBy: { periodEnd: "desc" }, take: 12 }),
     prisma.reviewAssignment.count({ where: { payout: { userId: user.id }, decision: { not: null } } }),
     getEarningsSummary(user.id),
+    prisma.certificate.findMany({ where: { userId: user.id } }),
   ]);
+  const certByTrack = new Map(certificates.map((c) => [c.trackId, c]));
 
   const totalCompleted = summaries.reduce((s, w) => s + w.unitsCompleted, 0);
   const totalApproved = summaries.reduce((s, w) => s + w.unitsApproved, 0);
@@ -44,16 +46,28 @@ export default async function MyWorkPage() {
       <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-p-secondary">Certifications</h2>
       <div className="mt-3">
         <Table>
-          <THead><TH>Track</TH><TH>Tier</TH><TH>Verified</TH></THead>
+          <THead><TH>Track</TH><TH>Tier</TH><TH>Verified</TH><TH>Certificate</TH></THead>
           <TBody>
-            {quals.length === 0 && <EmptyRow colSpan={3}>No certifications yet.</EmptyRow>}
-            {quals.map((q) => (
-              <TR key={q.id}>
-                <TD className="text-p-primary">{DOMAIN_LABEL[q.track.domain as keyof typeof DOMAIN_LABEL]}</TD>
-                <TD><Badge intent="info" icon={false}>{TIER_LABEL[q.tier as Tier]}</Badge></TD>
-                <TD className="text-xs text-p-secondary">{q.verifiedAt?.toLocaleDateString() ?? "—"}</TD>
-              </TR>
-            ))}
+            {quals.length === 0 && <EmptyRow colSpan={4}>No certifications yet.</EmptyRow>}
+            {quals.map((q) => {
+              const cert = certByTrack.get(q.trackId);
+              return (
+                <TR key={q.id}>
+                  <TD className="text-p-primary">{DOMAIN_LABEL[q.track.domain as keyof typeof DOMAIN_LABEL]}</TD>
+                  <TD><Badge intent="info" icon={false}>{TIER_LABEL[q.tier as Tier]}</Badge></TD>
+                  <TD className="text-xs text-p-secondary">{q.verifiedAt?.toLocaleDateString() ?? "—"}</TD>
+                  <TD>
+                    {cert ? (
+                      <a href={`/verify/${cert.serial}`} target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-p-accent hover:underline">
+                        {cert.serial} ↗
+                      </a>
+                    ) : (
+                      <span className="text-xs text-p-secondary">—</span>
+                    )}
+                  </TD>
+                </TR>
+              );
+            })}
           </TBody>
         </Table>
       </div>

@@ -406,6 +406,19 @@ async function main() {
   const intake = await prisma.cohort.create({ data: { name: "LATAM referral — Aug", kind: "intake", source: "referral", region: "Mexico", intakeStartDate: new Date("2026-08-01"), intakeEndDate: new Date("2026-08-15"), status: "open", createdById: admin.id } });
   await prisma.user.update({ where: { id: t2.id }, data: { cohortId: intake.id } });
 
+  // --- Phase 3: verifiable certificates for every active qualification ------
+  const activeQuals = await prisma.qualification.findMany({ where: { status: "active" } });
+  let serialN = 0;
+  for (const q of activeQuals) {
+    const serial = `VAL-${(0xa1b2c3 + serialN * 0x1111).toString(16).toUpperCase().padStart(8, "0")}-${(1000 + serialN).toString(16).toUpperCase().padStart(4, "0")}`;
+    serialN += 1;
+    await prisma.certificate.upsert({
+      where: { userId_trackId: { userId: q.userId, trackId: q.trackId } },
+      create: { userId: q.userId, trackId: q.trackId, tier: q.tier, serial, sourceQualificationId: q.id },
+      update: { tier: q.tier, revokedAt: null },
+    });
+  }
+
   console.log("Seed complete. Demo login password for all accounts: " + PASSWORD);
   console.log("  admin@valtaris.ai (admin) · ops@valtaris.ai (ops) · pm@valtaris.ai (project manager)");
   console.log("  t2.text@example.com (annotator with earnings + appeal)");
