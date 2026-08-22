@@ -19,12 +19,16 @@ export default function SignupPage() {
     setError(null);
     setLoading(true);
     const fd = new FormData(e.currentTarget);
+    // Carry the referral/source code from the signup link (?ref=…) through to
+    // intake-cohort tagging. Provenance only — never affects standing or pay.
+    const ref = new URLSearchParams(window.location.search).get("ref") ?? undefined;
     const payload = {
       email: fd.get("email"),
       password: fd.get("password"),
       country: fd.get("country"),
       primaryLanguage: fd.get("primaryLanguage"),
       consent: fd.get("consent") === "on",
+      ref,
     };
     const { ok, data } = await postJson<{ verifyUrl?: string }>("/api/signup", payload);
     setLoading(false);

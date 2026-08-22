@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { writeAudit } from "./audit";
-import { PASS_THRESHOLD, type Tier, type TestTrack } from "./constants";
+import { notify } from "./notify";
+import { PASS_THRESHOLD, TIER_LABEL, type Tier, type TestTrack } from "./constants";
 
 // ---------------------------------------------------------------------------
 // QUALIFICATION SCORING SERVICE
@@ -97,6 +98,32 @@ export async function scoreQualificationAttempt(params: {
     // suspends the linked capability (integration spec §4).
     const { syncValidatorWithTier } = await import("./validator");
     await syncValidatorWithTier(userId, trackId, tier);
+  }
+
+  // Notify the applicant of the exam outcome. Transactional on a pass (high
+  // priority); lifecycle on a fail so it batches with other coaching nudges.
+  // The notification links to detail — it never replaces the tier record itself.
+  const track = await prisma.track.findUnique({ where: { id: trackId }, select: { name: true } });
+  const trackName = track?.name ?? "your track";
+  if (passed) {
+    await notify({
+      userId,
+      category: "assessment",
+      title: `You passed the ${trackName} certification exam`,
+      body: `You're now certified at ${TIER_LABEL[tier]} for ${trackName}. Your tier is live on your profile.`,
+      deepLink: "/my-work",
+      email: true,
+    });
+  } else {
+    await notify({
+      userId,
+      type: "lifecycle",
+      category: "assessment",
+      title: `${trackName} exam — not passed this time`,
+      body: `You scored ${score}%. You can retry after the 24-hour cooldown; the Learning Center course for ${trackName} can help close the gap first.`,
+      deepLink: "/learn",
+      email: true,
+    });
   }
 
   return { attempt, tier, passed };

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   runQueuedJobs,
   escalateExpiredHolds,
+  expireCorrectionWindows,
   reconcileFromLabelStudio,
   runDormancyWarnings,
   runDormancyPurge,
@@ -17,9 +18,10 @@ export async function POST(req: Request) {
 
   const processed = await runQueuedJobs();
   const escalated = await escalateExpiredHolds();
+  const correctionsExpired = await expireCorrectionWindows();
   const reconciled = await reconcileFromLabelStudio();
   const dormancyWarned = await runDormancyWarnings();
   const purged = await runDormancyPurge();
 
-  return NextResponse.json({ ok: true, processed, escalated, reconciled, dormancyWarned, purged });
+  return NextResponse.json({ ok: true, processed, escalated, correctionsExpired, reconciled, dormancyWarned, purged });
 }

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/portal/session";
 import { writeAudit } from "@/lib/portal/audit";
+import { notify } from "@/lib/portal/notify";
 
 const schema = z.object({
   decision: z.enum(["upheld", "denied"]),
@@ -57,6 +58,19 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   await prisma.reviewFlag.updateMany({
     where: { type: "appeal", status: "open", userId: appeal.userId },
     data: { status: "resolved", resolvedAt: new Date(), resolvedById: staff.id },
+  });
+
+  // Notify the worker of the outcome, linking to the decision + note in-context.
+  const upheld = parsed.data.decision === "upheld";
+  await notify({
+    userId: appeal.userId,
+    category: "appeal",
+    title: upheld ? "Your appeal was upheld" : "Your appeal was reviewed",
+    body: upheld
+      ? `We reviewed your appeal and restored the payout. ${parsed.data.note}`
+      : `We reviewed your appeal and the original decision stands. ${parsed.data.note}`,
+    deepLink: "/appeals",
+    email: true,
   });
 
   return NextResponse.json({ ok: true });

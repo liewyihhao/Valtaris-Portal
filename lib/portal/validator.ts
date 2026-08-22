@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { writeAudit } from "./audit";
+import { notify } from "./notify";
 import { validateTransition, tierMultiplier, holdExpiry } from "./payout";
 import { addBusinessDays } from "./labels";
 import {
@@ -48,6 +49,11 @@ function tierAtLeast(tier: Tier, min: Tier): boolean {
   return TIER_ORDER.indexOf(tier) >= TIER_ORDER.indexOf(min);
 }
 
+async function trackNameFor(trackId: string): Promise<string> {
+  const t = await prisma.track.findUnique({ where: { id: trackId }, select: { name: true } });
+  return t?.name ?? "your track";
+}
+
 // ---------------------------------------------------------------------------
 // Eligibility: T2+ in the track, account active, no disciplinary flags in 90d.
 // ---------------------------------------------------------------------------
@@ -91,6 +97,17 @@ export async function scoreValidatorCalibration(params: { userId: string; trackI
     action: existing ? "validator_recertified" : "validator_granted",
     after: { trackId, score, status: "active" },
   });
+  const trackName = await trackNameFor(trackId);
+  await notify({
+    userId,
+    category: "validator",
+    title: existing ? `Validator access recertified — ${trackName}` : `Validator access granted — ${trackName}`,
+    body: existing
+      ? `Your validator calibration for ${trackName} is renewed. The review queue is open to you.`
+      : `You passed the ${trackName} validator calibration exam. You can now review other annotators' work in the Validate queue.`,
+    deepLink: "/validate",
+    email: true,
+  });
   return { passed: true, score };
 }
 
@@ -105,6 +122,16 @@ export async function syncValidatorWithTier(userId: string, trackId: string, tie
   if (cap && cap.status === "active") {
     await prisma.validatorCapability.update({ where: { id: cap.id }, data: { status: "paused" } });
     await writeAudit({ entityType: "ValidatorCapability", entityId: cap.id, action: "validator_paused_tier_drop", after: { tier } });
+    const trackName = await trackNameFor(trackId);
+    await notify({
+      userId,
+      type: "lifecycle",
+      category: "validator",
+      title: `Validator access paused — ${trackName}`,
+      body: `Your ${trackName} tier dropped below T2, so your validator capability there is paused. Requalify at T2+ to restore it.`,
+      deepLink: "/profile",
+      email: true,
+    });
   }
 }
 
@@ -114,6 +141,17 @@ export async function pauseValidatorOnFraud(userId: string) {
   for (const c of caps) {
     await prisma.validatorCapability.update({ where: { id: c.id }, data: { status: "paused" } });
     await writeAudit({ entityType: "ValidatorCapability", entityId: c.id, action: "validator_paused_fraud" });
+  }
+  if (caps.length > 0) {
+    await notify({
+      userId,
+      type: "lifecycle",
+      category: "validator",
+      title: "Validator access paused pending review",
+      body: `A confirmed-fraud clawback on your own work has paused your validator capabilities while Trust & Safety reviews. This decision is appealable.`,
+      deepLink: "/appeals",
+      email: true,
+    });
   }
   return caps.length;
 }
@@ -240,6 +278,19 @@ export async function recordReviewDecision(params: {
     actorId: params.validatorId,
     after: { decision: params.decision, reasonCode: params.reasonCode ?? null },
   });
+
+  // Tell the annotator when a correction is requested — the actionable event.
+  // The window itself is enforced by expireCorrectionWindows() (jobs.ts).
+  if (params.decision === "correction_requested") {
+    await notify({
+      userId: ra.payout.userId,
+      category: "review",
+      title: "Correction requested on your submission",
+      body: `A validator asked for a correction${params.reasonDetail ? `: ${params.reasonDetail}` : ""}. Resubmit within ${CORRECTION_WINDOW_HOURS} hours or the payout is closed (and remains appealable).`,
+      deepLink: "/my-work",
+      email: true,
+    });
+  }
 
   // Pay the Validator for the review (unless it was a calibration gold item).
   if (!ra.isCalibration) {

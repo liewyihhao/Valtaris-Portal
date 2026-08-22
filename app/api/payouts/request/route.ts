@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/portal/session";
 import { canRequestPayout } from "@/lib/portal/payout";
 import { getPayoutRail } from "@/lib/portal/payout-provider";
 import { writeAudit } from "@/lib/portal/audit";
+import { notify } from "@/lib/portal/notify";
 import type { PayoutProvider } from "@/lib/portal/constants";
 
 export async function POST() {
@@ -50,5 +51,17 @@ export async function POST() {
     });
   }
 
-  return NextResponse.json({ ok: true, paid: approved.length, amount: Math.round(balance * 100) / 100 });
+  const paidAmount = Math.round(balance * 100) / 100;
+  if (approved.length > 0) {
+    await notify({
+      userId: user.id,
+      category: "payout",
+      title: `Payment sent — $${paidAmount.toFixed(2)}`,
+      body: `Your payout of $${paidAmount.toFixed(2)} ${method.currency} was dispatched via ${method.provider}. Settlement time depends on your provider.`,
+      deepLink: "/earnings",
+      email: true,
+    });
+  }
+
+  return NextResponse.json({ ok: true, paid: approved.length, amount: paidAmount });
 }

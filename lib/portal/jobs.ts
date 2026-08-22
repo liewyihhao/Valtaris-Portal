@@ -75,6 +75,45 @@ export async function escalateExpiredHolds() {
   return expired.length;
 }
 
+// Correction-window expiry: a correction_requested payout whose window elapsed
+// with no resubmission is closed as rejected (reason-coded + appealable). The
+// window is stored in holdExpiresAt when the validator requests the correction.
+export async function expireCorrectionWindows() {
+  const { notify } = await import("./notify");
+  const expired = await prisma.payout.findMany({
+    where: { status: "correction_requested", holdExpiresAt: { lt: new Date() } },
+  });
+  for (const p of expired) {
+    const check = validateTransition({
+      from: "correction_requested",
+      to: "rejected",
+      reasonCode: "no_response_after_correction_request",
+    });
+    if (!check.ok) continue;
+    await prisma.payout.update({
+      where: { id: p.id },
+      data: { status: "rejected", reasonCode: "no_response_after_correction_request", holdExpiresAt: null },
+    });
+    await writeAudit({
+      entityType: "Payout",
+      entityId: p.id,
+      action: "correction_window_expired",
+      before: { status: "correction_requested" },
+      after: { status: "rejected", reasonCode: "no_response_after_correction_request" },
+    });
+    await notify({
+      userId: p.userId,
+      type: "lifecycle",
+      category: "payout",
+      title: "Correction window closed",
+      body: "The correction window passed without a resubmission, so this payout was closed. If you think this is wrong, you can appeal it.",
+      deepLink: "/appeals",
+      email: true,
+    });
+  }
+  return expired.length;
+}
+
 // Reconciliation: poll Label Studio for annotations not yet recorded as a
 // Submission, so a missed webhook never leaves completed work unaccounted for.
 // Uses the LS REST client; no-ops safely when the instance isn't configured.

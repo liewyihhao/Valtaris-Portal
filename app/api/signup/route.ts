@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { hashPassword, makeVerificationToken } from "@/lib/portal/password";
+import { resolveIntakeCohortId } from "@/lib/portal/intake";
 
 const schema = z.object({
   email: z.string().email(),
@@ -9,6 +10,9 @@ const schema = z.object({
   country: z.string().min(1),
   primaryLanguage: z.string().min(1),
   consent: z.boolean().refine((v) => v === true, "Privacy Policy consent is required"),
+  // Optional referral/source code from the signup link (?ref=…). Provenance
+  // only — never affects tier, pay, or standing.
+  ref: z.string().max(64).optional(),
 });
 
 export async function POST(req: Request) {
@@ -28,6 +32,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "An account with this email already exists." }, { status: 409 });
   }
 
+  // Tag into an intake cohort for funnel/channel analytics (best-effort).
+  const cohortId = await resolveIntakeCohortId({ ref: parsed.data.ref, region: country });
+
   const passwordHash = await hashPassword(password);
   await prisma.user.create({
     data: {
@@ -37,6 +44,7 @@ export async function POST(req: Request) {
       primaryLanguage,
       role: "applicant",
       applicationStage: "eligibility",
+      cohortId,
     },
   });
 
