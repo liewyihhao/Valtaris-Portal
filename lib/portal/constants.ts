@@ -51,6 +51,11 @@ export const TAX_1099_THRESHOLD_USD = 600;
 // The tier at/above which ID+biometric KYC is required before access.
 export const KYC_ID_BIOMETRIC_TIER: Tier = "T3_specialist";
 
+// Sanctions re-screening cadence (master design §2.12). A roster accumulated
+// over time won't all have been checked against the same list version, so the
+// whole workforce is re-screened on a rolling quarterly batch.
+export const SANCTIONS_RESCREEN_DAYS = 90;
+
 export const ROLE_LABEL: Record<Role, string> = {
   applicant: "Applicant",
   annotator: "Annotator",

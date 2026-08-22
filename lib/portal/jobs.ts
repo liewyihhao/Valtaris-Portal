@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { writeAudit } from "./audit";
 import { validateTransition } from "./payout";
+import { SANCTIONS_RESCREEN_DAYS } from "./constants";
 
 // Minimal DB-backed job processing. In production a scheduler hits
 // POST /api/jobs/run on an interval; here it can also be run manually.
@@ -112,6 +113,73 @@ export async function expireCorrectionWindows() {
     });
   }
   return expired.length;
+}
+
+// Sanctions re-screening cadence (master design §2.12). Re-checks the oldest
+// batch of trust profiles due for re-screening against the current list. A
+// newly-flagged worker is reason-coded into the Trust & Safety queue, has their
+// active payout methods frozen, and is notified — every adverse action stays
+// appealable. Batched (oldest-first) so a 10k roster never re-screens at once.
+export async function reScreenSanctions(limit = 200) {
+  const { getScreeningProvider, needsRescreen } = await import("./screening");
+  const { notify } = await import("./notify");
+  const cutoff = new Date(Date.now() - SANCTIONS_RESCREEN_DAYS * 24 * 3600 * 1000);
+
+  const due = await prisma.trustProfile.findMany({
+    where: { OR: [{ sanctionsCheckedAt: null }, { sanctionsCheckedAt: { lt: cutoff } }] },
+    include: { user: { select: { id: true, fullName: true, country: true } } },
+    orderBy: { sanctionsCheckedAt: { sort: "asc", nulls: "first" } },
+    take: limit,
+  });
+
+  const provider = getScreeningProvider();
+  let rescreened = 0;
+  let newlyFlagged = 0;
+  for (const tp of due) {
+    if (!needsRescreen(tp.sanctionsCheckedAt)) continue;
+    const result = await provider.screen({ fullName: tp.user.fullName, country: tp.user.country });
+    const wasFlagged = tp.sanctionsStatus === "flagged";
+    const nowFlagged = !result.cleared;
+    await prisma.trustProfile.update({
+      where: { id: tp.id },
+      data: { sanctionsStatus: nowFlagged ? "flagged" : "cleared", sanctionsCheckedAt: new Date() },
+    });
+    rescreened += 1;
+
+    if (nowFlagged && !wasFlagged) {
+      newlyFlagged += 1;
+      // Freeze active payout methods so no payout dispatches while flagged.
+      await prisma.payoutMethod.updateMany({
+        where: { userId: tp.userId, isActive: true },
+        data: { sanctionsCleared: false },
+      });
+      await prisma.reviewFlag.create({
+        data: {
+          userId: tp.userId,
+          type: "sanctions_flagged",
+          context: { matchDetail: result.matchDetail ?? null, source: "rescreen" },
+          note: `Sanctions re-screen match: ${result.matchDetail ?? "flagged"}. Payouts frozen pending Compliance review.`,
+        },
+      });
+      await writeAudit({
+        entityType: "TrustProfile",
+        entityId: tp.id,
+        action: "sanctions_flagged_on_rescreen",
+        before: { sanctionsStatus: tp.sanctionsStatus },
+        after: { sanctionsStatus: "flagged", matchDetail: result.matchDetail ?? null },
+      });
+      await notify({
+        userId: tp.userId,
+        type: "lifecycle",
+        category: "compliance",
+        title: "Account under compliance review",
+        body: "A routine sanctions re-screen needs review before further payouts. Compliance will follow up; you can appeal any resulting decision.",
+        deepLink: "/help",
+        email: true,
+      });
+    }
+  }
+  return { rescreened, newlyFlagged };
 }
 
 // Reconciliation: poll Label Studio for annotations not yet recorded as a
