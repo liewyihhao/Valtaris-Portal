@@ -5,6 +5,7 @@ import { requireCapability } from "@/lib/portal/capabilities";
 import { getPayoutRail } from "@/lib/portal/payout-provider";
 import { writeAudit } from "@/lib/portal/audit";
 import { notify } from "@/lib/portal/notify";
+import { t } from "@/lib/portal/i18n";
 import type { PayoutProvider } from "@/lib/portal/constants";
 
 const schema = z.object({ action: z.enum(["approve", "execute", "cancel"]) });
@@ -49,8 +50,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       await notify({
         userId,
         category: "payout",
-        title: `Payment sent — $${total.toFixed(2)}`,
-        body: `Your payout of $${total.toFixed(2)} was dispatched in this payout run. Settlement time depends on your provider.`,
+        title: t("notif.payout.paidRun.title", { amount: total.toFixed(2) }),
+        body: t("notif.payout.paidRun.body", { amount: total.toFixed(2) }),
         deepLink: "/earnings",
         email: true,
       });

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { writeAudit } from "./audit";
 import { notify } from "./notify";
+import { t } from "./i18n";
 import { PASS_THRESHOLD, TIER_LABEL, type Tier, type TestTrack } from "./constants";
 
 // ---------------------------------------------------------------------------
@@ -109,8 +110,8 @@ export async function scoreQualificationAttempt(params: {
     await notify({
       userId,
       category: "assessment",
-      title: `You passed the ${trackName} certification exam`,
-      body: `You're now certified at ${TIER_LABEL[tier]} for ${trackName}. Your tier is live on your profile.`,
+      title: t("notif.exam.pass.title", { track: trackName }),
+      body: t("notif.exam.pass.body", { tier: TIER_LABEL[tier], track: trackName }),
       deepLink: "/my-work",
       email: true,
     });
@@ -119,8 +120,8 @@ export async function scoreQualificationAttempt(params: {
       userId,
       type: "lifecycle",
       category: "assessment",
-      title: `${trackName} exam — not passed this time`,
-      body: `You scored ${score}%. You can retry after the 24-hour cooldown; the Learning Center course for ${trackName} can help close the gap first.`,
+      title: t("notif.exam.fail.title", { track: trackName }),
+      body: t("notif.exam.fail.body", { score, track: trackName }),
       deepLink: "/learn",
       email: true,
     });

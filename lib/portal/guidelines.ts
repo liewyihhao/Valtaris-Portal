@@ -54,6 +54,7 @@ export async function publishGuidelineVersion(params: {
   const { prisma } = await import("@/lib/db");
   const { writeAudit } = await import("./audit");
   const { enqueueBroadcast } = await import("./notify");
+  const { t } = await import("./i18n");
 
   const track = await prisma.track.findUnique({ where: { id: params.trackId }, select: { name: true } });
   const trackName = track?.name ?? "your track";
@@ -118,8 +119,8 @@ export async function publishGuidelineVersion(params: {
     await enqueueBroadcast({
       userIds,
       category: "training",
-      title: `Guideline update — ${trackName} v${version}`,
-      body: `The ${trackName} guidelines were updated to v${version}. A short "what changed" module is in your Learning Center — please review it before your next task.`,
+      title: t("notif.guideline.update.title", { track: trackName, version }),
+      body: t("notif.guideline.update.body", { track: trackName, version }),
       deepLink: "/learn",
     });
   }

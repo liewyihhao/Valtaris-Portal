@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireCapability } from "@/lib/portal/capabilities";
 import { writeAudit } from "@/lib/portal/audit";
 import { notify } from "@/lib/portal/notify";
+import { t } from "@/lib/portal/i18n";
 
 const schema = z.object({
   decision: z.enum(["upheld", "denied"]),
@@ -65,10 +66,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   await notify({
     userId: appeal.userId,
     category: "appeal",
-    title: upheld ? "Your appeal was upheld" : "Your appeal was reviewed",
+    title: upheld ? t("notif.appeal.upheld.title") : t("notif.appeal.denied.title"),
     body: upheld
-      ? `We reviewed your appeal and restored the payout. ${parsed.data.note}`
-      : `We reviewed your appeal and the original decision stands. ${parsed.data.note}`,
+      ? t("notif.appeal.upheld.body", { note: parsed.data.note })
+      : t("notif.appeal.denied.body", { note: parsed.data.note }),
     deepLink: "/appeals",
     email: true,
   });

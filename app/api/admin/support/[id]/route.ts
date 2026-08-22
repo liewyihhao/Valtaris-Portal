@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireCapability } from "@/lib/portal/capabilities";
 import { notify } from "@/lib/portal/notify";
+import { t } from "@/lib/portal/i18n";
 
 const schema = z.object({ status: z.enum(["in_progress", "resolved", "closed"]), note: z.string().optional() });
 
@@ -21,7 +22,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     },
   });
   if (parsed.data.status === "resolved") {
-    await notify({ userId: ticket.userId, category: "support", title: "Your ticket was resolved", body: parsed.data.note ?? `"${ticket.subject}" is resolved.`, deepLink: "/help" });
+    await notify({ userId: ticket.userId, category: "support", title: t("notif.support.resolved.title"), body: parsed.data.note ?? `"${ticket.subject}" is resolved.`, deepLink: "/help" });
   }
   return NextResponse.json({ ok: true });
 }

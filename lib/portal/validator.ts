@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { writeAudit } from "./audit";
 import { notify } from "./notify";
+import { t } from "./i18n";
 import { validateTransition, tierMultiplier, holdExpiry } from "./payout";
 import { addBusinessDays } from "./labels";
 import {
@@ -101,10 +102,8 @@ export async function scoreValidatorCalibration(params: { userId: string; trackI
   await notify({
     userId,
     category: "validator",
-    title: existing ? `Validator access recertified — ${trackName}` : `Validator access granted — ${trackName}`,
-    body: existing
-      ? `Your validator calibration for ${trackName} is renewed. The review queue is open to you.`
-      : `You passed the ${trackName} validator calibration exam. You can now review other annotators' work in the Validate queue.`,
+    title: existing ? t("notif.validator.recertified.title", { track: trackName }) : t("notif.validator.granted.title", { track: trackName }),
+    body: existing ? t("notif.validator.recertified.body", { track: trackName }) : t("notif.validator.granted.body", { track: trackName }),
     deepLink: "/validate",
     email: true,
   });
@@ -127,8 +126,8 @@ export async function syncValidatorWithTier(userId: string, trackId: string, tie
       userId,
       type: "lifecycle",
       category: "validator",
-      title: `Validator access paused — ${trackName}`,
-      body: `Your ${trackName} tier dropped below T2, so your validator capability there is paused. Requalify at T2+ to restore it.`,
+      title: t("notif.validator.pausedTier.title", { track: trackName }),
+      body: t("notif.validator.pausedTier.body", { track: trackName }),
       deepLink: "/profile",
       email: true,
     });
@@ -147,8 +146,8 @@ export async function pauseValidatorOnFraud(userId: string) {
       userId,
       type: "lifecycle",
       category: "validator",
-      title: "Validator access paused pending review",
-      body: `A confirmed-fraud clawback on your own work has paused your validator capabilities while Trust & Safety reviews. This decision is appealable.`,
+      title: t("notif.validator.pausedFraud.title"),
+      body: t("notif.validator.pausedFraud.body"),
       deepLink: "/appeals",
       email: true,
     });
@@ -285,8 +284,11 @@ export async function recordReviewDecision(params: {
     await notify({
       userId: ra.payout.userId,
       category: "review",
-      title: "Correction requested on your submission",
-      body: `A validator asked for a correction${params.reasonDetail ? `: ${params.reasonDetail}` : ""}. Resubmit within ${CORRECTION_WINDOW_HOURS} hours or the payout is closed (and remains appealable).`,
+      title: t("notif.correction.requested.title"),
+      body: t("notif.correction.requested.body", {
+        detail: params.reasonDetail ? `: ${params.reasonDetail}` : "",
+        hours: CORRECTION_WINDOW_HOURS,
+      }),
       deepLink: "/my-work",
       email: true,
     });

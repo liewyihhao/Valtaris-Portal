@@ -5,6 +5,7 @@ import { canRequestPayout } from "@/lib/portal/payout";
 import { getPayoutRail } from "@/lib/portal/payout-provider";
 import { writeAudit } from "@/lib/portal/audit";
 import { notify } from "@/lib/portal/notify";
+import { t } from "@/lib/portal/i18n";
 import type { PayoutProvider } from "@/lib/portal/constants";
 
 export async function POST() {
@@ -56,8 +57,8 @@ export async function POST() {
     await notify({
       userId: user.id,
       category: "payout",
-      title: `Payment sent — $${paidAmount.toFixed(2)}`,
-      body: `Your payout of $${paidAmount.toFixed(2)} ${method.currency} was dispatched via ${method.provider}. Settlement time depends on your provider.`,
+      title: t("notif.payout.paid.title", { amount: paidAmount.toFixed(2) }),
+      body: t("notif.payout.paid.body", { amount: paidAmount.toFixed(2), currency: method.currency, provider: method.provider }),
       deepLink: "/earnings",
       email: true,
     });

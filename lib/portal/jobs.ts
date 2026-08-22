@@ -81,6 +81,7 @@ export async function escalateExpiredHolds() {
 // window is stored in holdExpiresAt when the validator requests the correction.
 export async function expireCorrectionWindows() {
   const { notify } = await import("./notify");
+  const { t } = await import("./i18n");
   const expired = await prisma.payout.findMany({
     where: { status: "correction_requested", holdExpiresAt: { lt: new Date() } },
   });
@@ -106,8 +107,8 @@ export async function expireCorrectionWindows() {
       userId: p.userId,
       type: "lifecycle",
       category: "payout",
-      title: "Correction window closed",
-      body: "The correction window passed without a resubmission, so this payout was closed. If you think this is wrong, you can appeal it.",
+      title: t("notif.correction.expired.title"),
+      body: t("notif.correction.expired.body"),
       deepLink: "/appeals",
       email: true,
     });
@@ -123,6 +124,7 @@ export async function expireCorrectionWindows() {
 export async function reScreenSanctions(limit = 200) {
   const { getScreeningProvider, needsRescreen } = await import("./screening");
   const { notify } = await import("./notify");
+  const { t } = await import("./i18n");
   const cutoff = new Date(Date.now() - SANCTIONS_RESCREEN_DAYS * 24 * 3600 * 1000);
 
   const due = await prisma.trustProfile.findMany({
@@ -172,8 +174,8 @@ export async function reScreenSanctions(limit = 200) {
         userId: tp.userId,
         type: "lifecycle",
         category: "compliance",
-        title: "Account under compliance review",
-        body: "A routine sanctions re-screen needs review before further payouts. Compliance will follow up; you can appeal any resulting decision.",
+        title: t("notif.compliance.review.title"),
+        body: t("notif.compliance.review.body"),
         deepLink: "/help",
         email: true,
       });
