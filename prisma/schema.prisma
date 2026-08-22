@@ -620,6 +620,9 @@ model WorkSummary {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Idempotency for bridge writes: one row per worker/period/task/source, so a
+  // retried WorkSummary push updates in place rather than duplicating (§5).
+  @@unique([userId, periodStart, periodEnd, taskType, sourceSystem])
   @@index([userId, periodEnd])
 }
 
@@ -944,4 +947,28 @@ model Certificate {
 
   @@unique([userId, trackId])
   @@index([serial])
+}
+
+// ===========================================================================
+// PHASE 4 — INTEGRATION READINESS (service-account auth for the future bridge)
+// ===========================================================================
+
+// A non-human identity for system-to-system calls (master design §9). The
+// future Label Studio bridge authenticates with a scoped API key instead of a
+// user session. We store only a hash of the key (never the raw value); the raw
+// key is shown once at creation. Scopes are a comma-separated allowlist.
+model ServiceAccount {
+  id          String    @id @default(cuid())
+  name        String    @unique // e.g. "label_studio_bridge"
+  description String?
+  // Comma-separated scopes, e.g. "worksummary:write,standing:read".
+  scopes      String
+  keyHash     String    @unique // sha256(rawKey)
+  keyPrefix   String            // first chars of the raw key, for identification
+  createdById String?
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+
+  @@index([keyHash])
 }

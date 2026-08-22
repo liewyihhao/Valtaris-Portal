@@ -30,6 +30,7 @@ const items = [
   { href: "/admin/support", label: "Support queue", icon: LifeBuoy, cap: "support" },
   { href: "/admin/label-studio", label: "Label Studio", icon: Boxes, cap: "assessment_ops" },
   { href: "/admin/executive", label: "Executive", icon: BarChart3, cap: "executive" },
+  { href: "/admin/integrations", label: "Integrations", icon: Boxes, cap: "executive" },
 ];
 
 export function OpsNav({ email, capabilities }: { email: string; capabilities: string[] }) {
