@@ -1,19 +1,34 @@
 import { prisma } from "@/lib/db";
+import { requireCapability } from "@/lib/portal/capabilities";
+import { Card } from "@/components/portal/ui/Card";
 import { Table, THead, TH, TBody, TR, TD, EmptyRow } from "@/components/portal/ui/Table";
 import { Badge } from "@/components/portal/ui/Badge";
+import { PublishGuidelineForm } from "@/components/portal/PublishGuidelineForm";
 
 export default async function AdminGuidelinesPage() {
-  const versions = await prisma.guidelineVersion.findMany({
-    include: { track: true, _count: { select: { acks: true } } },
-    orderBy: [{ trackId: "asc" }, { version: "desc" }],
-  });
+  await requireCapability("training_author");
+  const [versions, tracks] = await Promise.all([
+    prisma.guidelineVersion.findMany({
+      include: { track: true, _count: { select: { acks: true } } },
+      orderBy: [{ trackId: "asc" }, { version: "desc" }],
+    }),
+    prisma.track.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ]);
 
   return (
     <div>
       <h1 className="text-2xl font-semibold text-p-primary">Guideline documents &amp; versions</h1>
       <p className="mt-1 text-sm text-p-secondary">
-        Version history per track. Bumping a version re-prompts annotators to re-acknowledge before their next task pull.
+        Version history per track. Bumping a version publishes a short &ldquo;what changed&rdquo; recert module and notifies
+        every annotator currently certified in that track.
       </p>
+
+      <div className="mt-6">
+        <Card>
+          <h2 className="mb-3 font-semibold text-p-primary">Publish a new version</h2>
+          <PublishGuidelineForm tracks={tracks} />
+        </Card>
+      </div>
 
       <div className="mt-6">
         <Table>

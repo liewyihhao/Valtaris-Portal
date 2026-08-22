@@ -5,6 +5,7 @@ import { Badge } from "@/components/portal/ui/Badge";
 import { Alert } from "@/components/portal/ui/Alert";
 import { LessonItem } from "@/components/portal/LessonItem";
 import { DOMAIN_LABEL } from "@/lib/portal/constants";
+import { isRecertModule } from "@/lib/portal/guidelines";
 
 export default async function LearnPage() {
   const user = await requireUser();
@@ -14,7 +15,10 @@ export default async function LearnPage() {
   const questionnaire = await prisma.questionnaireResponse.findUnique({ where: { userId: user.id } });
   const domains = ((questionnaire?.answers as { domains?: string[] } | undefined)?.domains) ?? [];
   const trackDomains = await prisma.track.findMany({ where: { domain: { in: domains } }, select: { id: true } });
-  const trackIds = trackDomains.map((t) => t.id);
+  // Also include tracks the user is already certified in, so recert "what
+  // changed" modules reach them even if their questionnaire domains differ.
+  const quals = await prisma.qualification.findMany({ where: { userId: user.id, status: "active" }, select: { trackId: true } });
+  const trackIds = [...new Set([...trackDomains.map((t) => t.id), ...quals.map((q) => q.trackId)])];
 
   const courses = await prisma.trainingCourse.findMany({
     where: { isPublished: true, OR: [{ trackId: null }, { trackId: { in: trackIds } }] },
@@ -23,6 +27,11 @@ export default async function LearnPage() {
   });
   const progress = await prisma.lessonProgress.findMany({ where: { userId: user.id }, select: { lessonId: true, status: true } });
   const doneSet = new Set(progress.filter((p) => p.status === "complete").map((p) => p.lessonId));
+
+  // Surface recert "what changed" modules first — they're time-sensitive.
+  const sortedCourses = [...courses].sort(
+    (a, b) => Number(isRecertModule(b.title)) - Number(isRecertModule(a.title))
+  );
 
   return (
     <div>
@@ -39,15 +48,17 @@ export default async function LearnPage() {
       </div>
 
       <div className="mt-6 space-y-5">
-        {courses.length === 0 && <p className="text-sm text-p-secondary">No courses available yet.</p>}
-        {courses.map((c) => {
+        {sortedCourses.length === 0 && <p className="text-sm text-p-secondary">No courses available yet.</p>}
+        {sortedCourses.map((c) => {
           const done = c.lessons.filter((l) => doneSet.has(l.id)).length;
+          const recert = isRecertModule(c.title);
           return (
             <Card key={c.id}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="font-semibold text-p-primary">{c.title}</h2>
+                    {recert && <Badge intent="warning" icon={false}>Guideline update</Badge>}
                     {c.isMandatory && <Badge intent="warning" icon={false}>Mandatory</Badge>}
                     {c.track && <Badge intent="neutral" icon={false}>{DOMAIN_LABEL[c.track.domain as keyof typeof DOMAIN_LABEL]}</Badge>}
                   </div>
