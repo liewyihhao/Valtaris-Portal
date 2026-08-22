@@ -1,3 +1,4 @@
+import { requireCapability } from "@/lib/portal/capabilities";
 import { prisma } from "@/lib/db";
 import { Table, THead, TH, TBody, TR, TD, EmptyRow } from "@/components/portal/ui/Table";
 import { Badge } from "@/components/portal/ui/Badge";
@@ -6,6 +7,7 @@ import { formatMoney } from "@/lib/portal/labels";
 import { TIER_MULTIPLIER } from "@/lib/portal/constants";
 
 export default async function RateCardsPage() {
+  await requireCapability("finance_ops");
   const cards = await prisma.rateCard.findMany({
     include: { track: true },
     orderBy: [{ trackId: "asc" }, { taskType: "asc" }, { version: "desc" }],

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireOps } from "@/lib/portal/session";
+import { requireCapability } from "@/lib/portal/capabilities";
 import { writeAudit } from "@/lib/portal/audit";
 
 // Create a draft payout run that sweeps all approved payouts not yet in a run.
 export async function POST() {
-  const staff = await requireOps();
+  const { user: staff } = await requireCapability("finance_ops");
 
   const candidates = await prisma.payout.findMany({ where: { status: "approved", payoutRunId: null } });
   if (candidates.length === 0) {

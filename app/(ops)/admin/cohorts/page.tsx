@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requirePM } from "@/lib/portal/session";
+import { requireCapability } from "@/lib/portal/capabilities";
 import { prisma } from "@/lib/db";
 import { Table, THead, TH, TBody, TR, TD, EmptyRow } from "@/components/portal/ui/Table";
 import { Badge } from "@/components/portal/ui/Badge";
@@ -12,7 +12,7 @@ const STATUS: Record<string, { label: string; intent: BadgeIntent }> = {
 };
 
 export default async function CohortsPage() {
-  await requirePM();
+  await requireCapability("recruiter");
   const cohorts = await prisma.cohort.findMany({
     include: { _count: { select: { members: true } }, taskBatch: true },
     orderBy: { createdAt: "desc" },

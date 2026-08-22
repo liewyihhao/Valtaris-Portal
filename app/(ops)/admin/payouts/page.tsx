@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireOps } from "@/lib/portal/session";
+import { requireCapability } from "@/lib/portal/capabilities";
 import { prisma } from "@/lib/db";
 import { StatCard, Card } from "@/components/portal/ui/Card";
 import { Badge } from "@/components/portal/ui/Badge";
@@ -16,7 +16,7 @@ const RUN_INTENT: Record<string, BadgeIntent> = {
 };
 
 export default async function PayoutMonitorPage() {
-  await requireOps();
+  await requireCapability("finance_ops");
   const { totals, exceptions, maxHoldHours } = await getPayoutOverview();
   const next = await getNextRunCandidates();
   const runs = await prisma.payoutRun.findMany({ orderBy: { createdAt: "desc" }, take: 15 });

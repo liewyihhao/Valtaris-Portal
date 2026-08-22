@@ -1,4 +1,4 @@
-import { requireOps } from "@/lib/portal/session";
+import { requireCapability } from "@/lib/portal/capabilities";
 import { prisma } from "@/lib/db";
 import { StatCard } from "@/components/portal/ui/Card";
 import { Table, THead, TH, TBody, TR, TD, EmptyRow } from "@/components/portal/ui/Table";
@@ -8,7 +8,7 @@ import { getMarginByClient } from "@/lib/portal/margin";
 import { formatMoney } from "@/lib/portal/labels";
 
 export default async function ClientsPage() {
-  await requireOps();
+  await requireCapability("finance_ops");
   const { rows, totals } = await getMarginByClient();
 
   const clients = await prisma.client.findMany({

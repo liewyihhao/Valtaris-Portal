@@ -1,3 +1,4 @@
+import { requireCapability } from "@/lib/portal/capabilities";
 import { prisma } from "@/lib/db";
 import { Card } from "@/components/portal/ui/Card";
 import { Badge } from "@/components/portal/ui/Badge";
@@ -5,6 +6,7 @@ import { Alert } from "@/components/portal/ui/Alert";
 import { Table, THead, TH, TBody, TR, TD, EmptyRow } from "@/components/portal/ui/Table";
 
 export default async function LabelStudioAdminPage() {
+  await requireCapability("assessment_ops");
   const mappings = await prisma.labelStudioMapping.findMany({ include: { track: true }, orderBy: { createdAt: "asc" } });
   const accounts = await prisma.labelStudioAccount.groupBy({ by: ["provisioningStatus"], _count: true });
 

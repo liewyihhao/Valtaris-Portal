@@ -1,9 +1,11 @@
+import { requireCapability } from "@/lib/portal/capabilities";
 import { prisma } from "@/lib/db";
 import { Card } from "@/components/portal/ui/Card";
 import { Badge } from "@/components/portal/ui/Badge";
 import { DOMAIN_LABEL } from "@/lib/portal/constants";
 
 export default async function QuestionsPage() {
+  await requireCapability("assessment_ops");
   const questions = await prisma.calibrationQuestion.findMany({
     include: { track: true },
     orderBy: [{ trackId: "asc" }],

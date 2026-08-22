@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { requirePM } from "@/lib/portal/session";
+import { requireCapability } from "@/lib/portal/capabilities";
 import { prisma } from "@/lib/db";
 import { Card } from "@/components/portal/ui/Card";
 import { Badge } from "@/components/portal/ui/Badge";
@@ -9,7 +9,7 @@ import { CohortActions } from "@/components/portal/CohortActions";
 import { TIER_LABEL, DOMAIN_LABEL, type Tier } from "@/lib/portal/constants";
 
 export default async function CohortDetail({ params }: { params: Promise<{ id: string }> }) {
-  await requirePM();
+  await requireCapability("recruiter");
   const { id } = await params;
   const cohort = await prisma.cohort.findUnique({
     where: { id },

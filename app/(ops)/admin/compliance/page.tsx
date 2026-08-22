@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireOps } from "@/lib/portal/session";
+import { requireCapability } from "@/lib/portal/capabilities";
 import { prisma } from "@/lib/db";
 import { StatCard, Card } from "@/components/portal/ui/Card";
 import { Badge } from "@/components/portal/ui/Badge";
@@ -8,7 +8,7 @@ import { formatMoney } from "@/lib/portal/labels";
 import { TAX_1099_THRESHOLD_USD, KYC_LABEL, DORMANCY_WARN_MONTHS, type KycLevel } from "@/lib/portal/constants";
 
 export default async function CompliancePage() {
-  await requireOps();
+  await requireCapability("compliance_ops");
 
   const annotators = await prisma.user.findMany({
     where: { role: "annotator" },

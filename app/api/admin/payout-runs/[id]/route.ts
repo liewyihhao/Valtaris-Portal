@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireOps } from "@/lib/portal/session";
+import { requireCapability } from "@/lib/portal/capabilities";
 import { getPayoutRail } from "@/lib/portal/payout-provider";
 import { writeAudit } from "@/lib/portal/audit";
 import { notify } from "@/lib/portal/notify";
@@ -10,7 +10,7 @@ import type { PayoutProvider } from "@/lib/portal/constants";
 const schema = z.object({ action: z.enum(["approve", "execute", "cancel"]) });
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const staff = await requireOps();
+  const { user: staff } = await requireCapability("finance_ops");
   const { id } = await ctx.params;
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });

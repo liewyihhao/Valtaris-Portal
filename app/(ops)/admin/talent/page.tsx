@@ -1,4 +1,4 @@
-import { requirePM } from "@/lib/portal/session";
+import { requireCapability } from "@/lib/portal/capabilities";
 import { prisma } from "@/lib/db";
 import { buildTalentWhere, talentInclude, type TalentFilters } from "@/lib/portal/talent";
 import { TalentSelection, type TalentRow } from "@/components/portal/TalentSelection";
@@ -6,7 +6,7 @@ import { TIER_LABEL, DOMAIN_LABEL, KYC_LABEL, type Tier } from "@/lib/portal/con
 import { LANGUAGES, COUNTRIES } from "@/lib/portal/options";
 
 export default async function TalentPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  await requirePM();
+  await requireCapability("recruiter");
   const sp = await searchParams;
 
   const filters: TalentFilters = {

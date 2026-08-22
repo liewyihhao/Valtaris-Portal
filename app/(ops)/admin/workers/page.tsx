@@ -1,3 +1,4 @@
+import { requireStaff } from "@/lib/portal/session";
 import { prisma } from "@/lib/db";
 import { Card } from "@/components/portal/ui/Card";
 import { Badge } from "@/components/portal/ui/Badge";
@@ -6,6 +7,7 @@ import { TIER_LABEL, DOMAIN_LABEL, type Tier } from "@/lib/portal/constants";
 import type { Prisma } from "@prisma/client";
 
 export default async function WorkersPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  await requireStaff();
   const sp = await searchParams;
   const q = sp.q ?? "";
   const tier = sp.tier ?? "";

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requirePM } from "@/lib/portal/session";
+import { requireCapability } from "@/lib/portal/capabilities";
 import { writeAudit } from "@/lib/portal/audit";
 
 const schema = z.object({
@@ -12,7 +12,7 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  const staff = await requirePM();
+  const { user: staff } = await requireCapability("recruiter");
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Name and at least one annotator are required." }, { status: 400 });
 

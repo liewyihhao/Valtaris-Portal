@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireStaff } from "@/lib/portal/session";
+import { requireCapability } from "@/lib/portal/capabilities";
 import { prisma } from "@/lib/db";
 import { StatCard } from "@/components/portal/ui/Card";
 import { Badge } from "@/components/portal/ui/Badge";
@@ -8,7 +8,7 @@ import { ValidatorRowActions } from "@/components/portal/ValidatorRowActions";
 import { DOMAIN_LABEL, VALIDATOR_PASS_THRESHOLD } from "@/lib/portal/constants";
 
 export default async function ValidatorsPage() {
-  await requireStaff();
+  await requireCapability("validator_ops");
 
   const caps = await prisma.validatorCapability.findMany({
     include: { user: true, track: true },

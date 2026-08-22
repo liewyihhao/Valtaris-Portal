@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requirePM } from "@/lib/portal/session";
+import { requireCapability } from "@/lib/portal/capabilities";
 import { writeAudit } from "@/lib/portal/audit";
 import { getKycProvider } from "@/lib/portal/kyc";
 import { setStudioAccess } from "@/lib/portal/studio-access";
@@ -12,7 +12,7 @@ const schema = z.object({
 });
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const staff = await requirePM();
+  const { user: staff } = await requireCapability("recruiter");
   const { id } = await ctx.params;
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });

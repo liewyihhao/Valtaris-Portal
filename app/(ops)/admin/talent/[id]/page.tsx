@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { requirePM } from "@/lib/portal/session";
+import { requireCapability } from "@/lib/portal/capabilities";
 import { prisma } from "@/lib/db";
 import { Card, StatCard } from "@/components/portal/ui/Card";
 import { Badge } from "@/components/portal/ui/Badge";
@@ -11,7 +11,7 @@ import { PAYOUT_STATUS_META, formatMoney } from "@/lib/portal/labels";
 import type { PayoutStatus } from "@/lib/portal/constants";
 
 export default async function TalentProfile({ params }: { params: Promise<{ id: string }> }) {
-  await requirePM();
+  await requireCapability("recruiter");
   const { id } = await params;
   const u = await prisma.user.findUnique({
     where: { id },

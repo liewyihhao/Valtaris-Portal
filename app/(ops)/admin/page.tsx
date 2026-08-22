@@ -1,3 +1,4 @@
+import { requireCapability } from "@/lib/portal/capabilities";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { Card } from "@/components/portal/ui/Card";
@@ -16,6 +17,7 @@ const FLAG_LABEL: Record<string, string> = {
 };
 
 export default async function ReviewQueue() {
+  await requireCapability("trust_safety");
   const [flags, appeals] = await Promise.all([
     prisma.reviewFlag.findMany({
       where: { status: "open", type: { not: "appeal" } },
