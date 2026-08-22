@@ -125,6 +125,7 @@ export async function reScreenSanctions(limit = 200) {
   const { getScreeningProvider, needsRescreen } = await import("./screening");
   const { notify } = await import("./notify");
   const { t } = await import("./i18n");
+  const { setStudioAccess } = await import("./studio-access");
   const cutoff = new Date(Date.now() - SANCTIONS_RESCREEN_DAYS * 24 * 3600 * 1000);
 
   const due = await prisma.trustProfile.findMany({
@@ -155,6 +156,8 @@ export async function reScreenSanctions(limit = 200) {
         where: { userId: tp.userId, isActive: true },
         data: { sanctionsCleared: false },
       });
+      // Revoke Studio access so a flagged worker can't keep pulling tasks.
+      await setStudioAccess(tp.userId, "blocked", "sanctions_flagged");
       await prisma.reviewFlag.create({
         data: {
           userId: tp.userId,

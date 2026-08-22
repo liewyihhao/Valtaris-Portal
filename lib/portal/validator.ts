@@ -141,6 +141,9 @@ export async function pauseValidatorOnFraud(userId: string) {
     await prisma.validatorCapability.update({ where: { id: c.id }, data: { status: "paused" } });
     await writeAudit({ entityType: "ValidatorCapability", entityId: c.id, action: "validator_paused_fraud" });
   }
+  // Confirmed fraud revokes Studio access outright, not just the validator role.
+  const { setStudioAccess } = await import("./studio-access");
+  await setStudioAccess(userId, "blocked", "confirmed_fraud");
   if (caps.length > 0) {
     await notify({
       userId,

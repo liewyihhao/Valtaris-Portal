@@ -97,10 +97,32 @@ export async function setStudioAccess(userId: string, status: "active" | "blocke
     after: { status, reason: reason ?? null },
   });
 
-  // Best-effort: tell the fork to flip is_active (revocation endpoint).
-  const { labelStudio } = await import("./label-studio-client");
-  if (labelStudio.configured() && account.labelStudioUserId) {
-    // The fork exposes a secret-gated endpoint; wired as a follow-up.
-    // await labelStudio.setUserActive(account.labelStudioUserId, active);
+  // Best-effort: push the active/inactive flag to the Studio fork so an already
+  // logged-in session is revoked, not just future SSO mints. Never throws — a
+  // Studio outage must not roll back the Portal-side revocation, which is
+  // authoritative; the nightly reconcile + Studio's own standing re-check are
+  // the backstop.
+  await pushStudioActiveToFork(userId, active);
+}
+
+// Calls the Studio fork's secret-gated set-active endpoint (valtaris_sso app).
+// No-ops when Studio isn't configured (base URL / SSO secret unset).
+export async function pushStudioActiveToFork(userId: string, active: boolean): Promise<{ pushed: boolean }> {
+  const base = process.env.LABEL_STUDIO_BASE_URL;
+  const secret = process.env.STUDIO_SSO_SECRET;
+  if (!base || !secret) return { pushed: false };
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    await fetch(`${base}/api/valtaris/set-active`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Valtaris-Secret": secret },
+      body: JSON.stringify({ valtaris_user_id: userId, active }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    return { pushed: true };
+  } catch {
+    return { pushed: false }; // best-effort; Portal state already updated + audited
   }
 }

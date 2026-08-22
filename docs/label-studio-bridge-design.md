@@ -18,9 +18,11 @@ remains to build, where, and in which order.
 
 ## 1. What already exists — the bridge's foundation
 
-Portal-side surfaces are built and proven; the one Studio-side surface
-(`set-active`) exists in the Studio fork's `valtaris_sso` app, but the Portal
-does not yet *call* it (see §3.4 — that emit is Phase-5 work).
+Portal-side surfaces are built and proven. The `set-active` **push to the fork
+is now wired** on the Portal side (`setStudioAccess` in `lib/portal/studio-access.ts`
+→ `pushStudioActiveToFork`), fired from the adverse triggers in §3.4; it no-ops
+safely when Studio isn't configured. The Studio-side endpoint itself lives in the
+fork's `valtaris_sso` app.
 
 | Surface | File / route | Direction | Auth | Built? |
 |---|---|---|---|---|
@@ -30,7 +32,7 @@ does not yet *call* it (see §3.4 — that emit is Phase-5 work).
 | **Per-annotation ingest** | `POST /api/webhooks/label-studio` (Portal) | Studio → Portal | `X-Valtaris-Webhook-Secret` | ✅ Portal |
 | **Reconciliation poll** | `reconcileFromLabelStudio()` in `lib/portal/jobs.ts` (+ `label-studio-client.ts`) | Portal → Studio | LS API token | ✅ Portal (no-ops when unconfigured) |
 | **Service-account admin** | `/admin/integrations` (Portal) | — | `executive` | ✅ Portal |
-| **Access revocation** | `set-active` in the Studio fork's `valtaris_sso` app | Portal → Studio | shared secret | ⚠️ Studio endpoint exists; **Portal-side caller not yet wired** |
+| **Access revocation** | `setStudioAccess` (Portal) → `set-active` (Studio fork) | Portal → Studio | `STUDIO_SSO_SECRET` (`X-Valtaris-Secret`) | ✅ Portal emit wired (manual suspend, confirmed-fraud, sanctions flag); best-effort push |
 
 Standing read, work-summary write, per-annotation ingest, and their auth are
 proven end-to-end (Phase 4). Two independent Studio→Portal channels coexist, and
@@ -108,9 +110,17 @@ Tier drop below T2 / fraud clawback / sanctions flag / account suspend (Portal)
   → Bridge: POST set-active(false) to Studio (or narrows project membership)
   → Studio stops routing new tasks to that worker
 ```
-Trigger points exist (`syncValidatorWithTier`, `pauseValidatorOnFraud`,
-`reScreenSanctions`). Phase-5 work: emit the set-active/membership call from those
-points (today they only update Portal state + notify).
+**Now wired (Portal side):** `setStudioAccess(userId, "blocked", reason)` fires
+from **confirmed-fraud** (`pauseValidatorOnFraud`), **sanctions re-flag**
+(`reScreenSanctions`), and **manual suspend** (`/api/admin/talent/[id]`) → flips
+the `LabelStudioAccount` (audited) and best-effort-pushes `set-active(false)` to
+the fork. Tier-drop below T2 deliberately does **not** fully revoke (the worker
+can still annotate at a lower tier — it only pauses the validator capability).
+Remaining Phase-5 work: the fork's `valtaris_sso` endpoint honoring the push for
+live sessions, project-membership narrowing (vs. binary active), and a
+clawback-execution endpoint that would call `pauseValidatorOnFraud` (the fraud
+hook exists but has no caller yet). Reactivation stays manual (a human confirms
+before restoring access after a compliance block).
 
 ---
 
@@ -192,7 +202,8 @@ is exactly what the Phase-4 model enables. Consider per-environment keys
 1. **Studio-side connector skeleton** — read `standing` before task assignment;
    respect `accountStatus` + tier/track. (Consumes built endpoint.)
 2. **Provisioning + membership** — on Portal promotion, set Studio project
-   membership from standing; wire set-active into the four adverse triggers (§3.4).
+   membership from standing. (Portal-side set-active emit for adverse triggers is
+   already wired — §3.4; remaining is the fork honoring it + membership narrowing.)
 3. **Webhook wiring** — configure Studio webhooks; guarantee task `meta`
    (`valtaris_user_id`, `item_count`, `is_gold`).
 4. **Aggregation job** — Studio nightly job posts `work-summary` rows computed
