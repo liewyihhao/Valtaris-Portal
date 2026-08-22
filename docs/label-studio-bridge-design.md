@@ -116,11 +116,14 @@ from **confirmed-fraud** (`pauseValidatorOnFraud`), **sanctions re-flag**
 the `LabelStudioAccount` (audited) and best-effort-pushes `set-active(false)` to
 the fork. Tier-drop below T2 deliberately does **not** fully revoke (the worker
 can still annotate at a lower tier — it only pauses the validator capability).
-Remaining Phase-5 work: the fork's `valtaris_sso` endpoint honoring the push for
-live sessions, project-membership narrowing (vs. binary active), and a
-clawback-execution endpoint that would call `pauseValidatorOnFraud` (the fraud
-hook exists but has no caller yet). Reactivation stays manual (a human confirms
-before restoring access after a compliance block).
+The confirmed-fraud path is now live end-to-end on the Portal side: a Trust &
+Safety `confirm_fraud` action on a fraud flag (`/api/admin/flags/[id]` →
+`lib/portal/fraud.ts` `confirmFraudClawback`) claws back the payout
+(reason-coded, appealable), calls `pauseValidatorOnFraud` (which pauses validator
+caps + pushes `set-active(false)`), and notifies the worker. Remaining Phase-5
+work is Studio-side: the fork's `valtaris_sso` endpoint honoring the push for
+live sessions, and project-membership narrowing (vs. binary active). Reactivation
+stays manual (a human confirms before restoring access after a compliance block).
 
 ---
 

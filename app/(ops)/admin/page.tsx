@@ -87,7 +87,7 @@ export default async function ReviewQueue() {
                 View worker →
               </Link>
             </div>
-            <FlagActions flagId={f.id} />
+            <FlagActions flagId={f.id} flagType={f.type} payoutId={(f.context as { payoutId?: string } | null)?.payoutId} />
           </Card>
         ))}
       </div>

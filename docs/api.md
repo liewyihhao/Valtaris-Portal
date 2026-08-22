@@ -48,7 +48,7 @@ ops set; `pm` maps to `recruiter`.
 | Method | Path | Capability | Effect |
 |---|---|---|---|
 | PATCH | `/api/admin/appeals/[id]` | `trust_safety` | Resolves an appeal; `upheld` restores the payout to `approved` (audited); notifies the worker. |
-| PATCH | `/api/admin/flags/[id]` | `trust_safety` | Closes a review flag. |
+| PATCH | `/api/admin/flags/[id]` | `trust_safety` | `resolve`/`dismiss` a flag, or `confirm_fraud` (with `reasonDetail`, payout from flag context or `payoutId`) → claws back the payout, pauses the validator capability, revokes Studio access, notifies the worker (appealable), and resolves the flag. |
 | PATCH | `/api/admin/payout-runs/[id]` | `finance_ops` | `approve`/`execute`/`cancel` a payout run; `execute` dispatches + notifies each worker once. |
 | POST | `/api/admin/guidelines` | `training_author` | Publishes a new guideline version → recert "what changed" module + broadcast to certified annotators. |
 | POST | `/api/admin/forecast` | `recruiter` | Generates + persists a `WorkforceForecast` (intake × pass-rate × active-rate). |

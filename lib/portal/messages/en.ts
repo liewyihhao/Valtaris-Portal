@@ -42,6 +42,9 @@ export const en = {
     "Your payout of ${amount} {currency} was dispatched via {provider}. Settlement time depends on your provider.",
   "notif.payout.paidRun.title": "Payment sent — ${amount}",
   "notif.payout.paidRun.body": "Your payout of ${amount} was dispatched in this payout run. Settlement time depends on your provider.",
+  "notif.payout.clawback.title": "Payout reversed — confirmed fraud",
+  "notif.payout.clawback.body":
+    "A payout was reversed after a confirmed-fraud review: {detail}. Your validator and Studio access are suspended pending outcome. This decision is appealable.",
 
   // --- Appeals ---
   "notif.appeal.upheld.title": "Your appeal was upheld",
