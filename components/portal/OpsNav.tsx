@@ -15,6 +15,7 @@ import { LogoMark } from "@/components/brand/Logo";
 const items = [
   { href: "/admin/home", label: "Overview", icon: Home },
   { href: "/admin/funnel", label: "Recruiting funnel", icon: BarChart3, cap: "recruiter" },
+  { href: "/admin/applications", label: "Website applications", icon: Inbox, cap: "recruiter" },
   { href: "/admin/talent", label: "Worker directory", icon: UsersRound, cap: "recruiter" },
   { href: "/admin/cohorts", label: "Cohorts", icon: FolderKanban, cap: "recruiter" },
   { href: "/admin/forecast", label: "Capacity forecast", icon: TrendingUp, cap: "recruiter" },

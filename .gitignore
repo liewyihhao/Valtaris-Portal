@@ -36,3 +36,4 @@ next-env.d.ts.timestamp
 
 # vercel
 .vercel
+private-uploads/
