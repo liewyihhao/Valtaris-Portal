@@ -69,16 +69,15 @@ function LoginForm() {
           <Input id="password" name="password" type="password" required autoComplete="current-password" />
         </Field>
         <Button type="submit" disabled={loading} className="w-full">
-          {loading ? "Signing in…" : "Log in"}
+          {loading ? "Signing in…" : "Login"}
         </Button>
       </form>
       <p className="mt-5 text-center text-sm text-p-secondary">
         New here?{" "}
         <Link href="/signup" className="text-p-accent hover:underline">Create an account</Link>
       </p>
-      <p className="mt-2 text-center text-xs text-p-secondary">
-        Valtaris staff?{" "}
-        <Link href="/staff/login" className="text-p-accent hover:underline">Staff &amp; admin sign in</Link>
+      <p className="mt-6 text-center text-[11px] text-p-disabled">
+        <Link href="/staff/login" className="hover:text-p-secondary hover:underline">Staff sign-in</Link>
       </p>
     </Card>
   );
