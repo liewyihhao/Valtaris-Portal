@@ -43,7 +43,12 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         </div>
         <div className="flex items-center gap-2">
           <Link href={`/admin/talent?track=${project.trackId}`}><Button size="sm">Staff from talent pool</Button></Link>
-          <ProjectActions projectId={project.id} isActive={project.isActive} />
+          <ProjectActions
+            projectId={project.id}
+            isActive={project.isActive}
+            studioProjectId={project.labelStudioProjectId}
+            studioBaseUrl={process.env.LABEL_STUDIO_BASE_URL ?? "http://localhost:8091"}
+          />
         </div>
       </div>
 

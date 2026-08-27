@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireCapability } from "@/lib/portal/capabilities";
 import { writeAudit } from "@/lib/portal/audit";
+import { provisionStudioProject } from "@/lib/portal/project-provision";
 
 const schema = z.object({
   taskType: z.string().min(2).max(80),
@@ -55,5 +56,15 @@ export async function POST(req: Request) {
     after: { taskType, trackId, clientName: client.name, estimatedItems },
   });
 
-  return NextResponse.json({ ok: true, id: project.id });
+  // Best-effort: spin up the Label Studio counterpart + webhook. No-ops when LS
+  // isn't configured (the project is still created; ops can provision later).
+  const provision = await provisionStudioProject(project.id, user.id);
+
+  return NextResponse.json({
+    ok: true,
+    id: project.id,
+    provisioned: provision.ok,
+    studioProjectId: provision.ok ? provision.projectId : null,
+    provisionNote: provision.ok ? null : provision.error,
+  });
 }

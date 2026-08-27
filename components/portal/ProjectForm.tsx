@@ -19,7 +19,7 @@ export function ProjectForm({ tracks }: { tracks: { id: string; name: string }[]
     setErr(null);
     setOk(null);
     const fd = new FormData(e.currentTarget);
-    const { ok: success, data } = await postJson<{ id?: string }>("/api/admin/projects", {
+    const { ok: success, data } = await postJson<{ id?: string; provisioned?: boolean; provisionNote?: string | null }>("/api/admin/projects", {
       taskType: fd.get("taskType"),
       trackId: fd.get("trackId"),
       clientName: fd.get("clientName"),
@@ -28,7 +28,11 @@ export function ProjectForm({ tracks }: { tracks: { id: string; name: string }[]
     });
     setBusy(false);
     if (!success) { setErr(data.error ?? "Failed to create project."); return; }
-    setOk("Project created. Staff it from the talent pool below.");
+    setOk(
+      data.provisioned
+        ? "Project created and its Studio project was provisioned. Staff it from the talent pool below."
+        : `Project created. Studio project not provisioned (${data.provisionNote ?? "Studio not configured"}) — provision it from the project page once Studio is reachable. Staff it below.`
+    );
     (e.target as HTMLFormElement).reset();
     router.refresh();
   }
