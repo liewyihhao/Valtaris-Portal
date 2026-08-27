@@ -8,6 +8,7 @@ const PASSWORD = "password123"; // demo password for every seeded account
 async function main() {
   console.log("Seeding Valtaris portal…");
   const hash = await bcrypt.hash(PASSWORD, 10);
+  const hash8 = await bcrypt.hash("12345678", 10); // simple test accounts
 
   // Clean (dev only) in dependency order.
   await prisma.$transaction([
@@ -249,6 +250,17 @@ async function main() {
   await makeAnnotator("t2.image@example.com", "Ravi Kumar", "India", "Hindi", imageTrack, "T2_skilled");
   await makeAnnotator("t3.llm@example.com", "Amara Okoye", "Nigeria", "English", llmTrack, "T3_specialist");
 
+  // --- Simple test accounts (password: 12345678) ---------------------------
+  // admin@admin.com — full admin. aaa@aaa.com — an approved T2 (Text/NLP)
+  // annotator the admin can ALSO assign as a validator (one identity, layered
+  // capabilities). Starts annotator-only so the admin assigns the validator
+  // role during testing.
+  await prisma.user.create({
+    data: { email: "admin@admin.com", passwordHash: hash8, role: "admin", country: "Malaysia", primaryLanguage: "English", fullName: "Test Admin", emailVerifiedAt: new Date(), applicationStage: "approved" },
+  });
+  const aaa = await makeAnnotator("aaa@aaa.com", "AAA Tester", "Malaysia", "English", textTrack, "T2_skilled");
+  await prisma.user.update({ where: { id: aaa.id }, data: { passwordHash: hash8 } });
+
   // --- Task batches + Label Studio mapping ---------------------------------
   const batchSent = await prisma.taskBatch.create({ data: { trackId: textTrack.id, clientId: "client-a", clientName: "Client A", taskType: "Sentiment tagging", complexityMultiplier: 1.0, estimatedItems: 500, labelStudioProjectId: "ls-proj-101" } });
   const batchMod = await prisma.taskBatch.create({ data: { trackId: textTrack.id, clientId: "client-b", clientName: "Client B", taskType: "Content moderation", complexityMultiplier: 1.2, estimatedItems: 180, labelStudioProjectId: "ls-proj-102" } });
@@ -419,10 +431,12 @@ async function main() {
     });
   }
 
-  console.log("Seed complete. Demo login password for all accounts: " + PASSWORD);
+  console.log("Seed complete. Demo login password for *@valtaris.ai / *@example.com: " + PASSWORD);
   console.log("  admin@valtaris.ai (admin) · ops@valtaris.ai (ops) · pm@valtaris.ai (project manager)");
   console.log("  t2.text@example.com (annotator with earnings + appeal)");
   console.log("  applicant@example.com (fresh funnel) · dormant@example.com (11.5mo idle)");
+  console.log("Test accounts (password: 12345678):");
+  console.log("  admin@admin.com (admin) · aaa@aaa.com (T2 Text/NLP annotator — assign as validator in /admin/validators)");
 }
 
 main()

@@ -5,7 +5,9 @@ import { StatCard } from "@/components/portal/ui/Card";
 import { Badge } from "@/components/portal/ui/Badge";
 import { Table, THead, TH, TBody, TR, TD, EmptyRow } from "@/components/portal/ui/Table";
 import { ValidatorRowActions } from "@/components/portal/ValidatorRowActions";
-import { DOMAIN_LABEL, VALIDATOR_PASS_THRESHOLD } from "@/lib/portal/constants";
+import { GrantValidatorForm } from "@/components/portal/GrantValidatorForm";
+import { Card } from "@/components/portal/ui/Card";
+import { DOMAIN_LABEL, VALIDATOR_PASS_THRESHOLD, TIER_LABEL, type Tier } from "@/lib/portal/constants";
 
 export default async function ValidatorsPage() {
   await requireCapability("validator_ops");
@@ -14,6 +16,20 @@ export default async function ValidatorsPage() {
     include: { user: true, track: true },
     orderBy: { grantedAt: "desc" },
   });
+
+  // Workers with an active qualification who aren't already an active validator
+  // in that track — the admin can assign the validator role to any of these.
+  const activeCaps = new Set(caps.filter((c) => c.status === "active").map((c) => `${c.userId}:${c.trackId}`));
+  const quals = await prisma.qualification.findMany({
+    where: { status: "active" },
+    include: { user: { select: { fullName: true, email: true } }, track: { select: { name: true } } },
+  });
+  const grantOptions = quals
+    .filter((q) => !activeCaps.has(`${q.userId}:${q.trackId}`))
+    .map((q) => ({
+      value: `${q.userId}:${q.trackId}`,
+      label: `${q.user.fullName ?? q.user.email} — ${q.track.name} (${TIER_LABEL[q.tier as Tier]})`,
+    }));
 
   // Backlog = pending review assignments in each validator's tracks.
   const pendingByTrack = await prisma.reviewAssignment.groupBy({
@@ -37,6 +53,14 @@ export default async function ValidatorsPage() {
         <StatCard label="Open reviews" value={String(openReviews)} sub="awaiting a decision" />
         <StatCard label={`Below ${VALIDATOR_PASS_THRESHOLD}% calibration`} value={String(belowThreshold)} />
       </div>
+
+      <Card className="mt-6">
+        <h2 className="mb-1 font-semibold text-p-primary">Assign validator role</h2>
+        <p className="mb-3 text-xs text-p-secondary">
+          One identity, layered capabilities — designate a qualified annotator to also validate a track. (Admin override of the exam-earned path.)
+        </p>
+        <GrantValidatorForm options={grantOptions} />
+      </Card>
 
       <div className="mt-6">
         <Table>
