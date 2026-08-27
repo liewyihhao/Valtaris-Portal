@@ -28,7 +28,9 @@ export default auth((req) => {
   const needsStaff = STAFF_PREFIXES.some((p) => pathname.startsWith(p));
 
   if ((needsAuth || needsStaff) && !session) {
-    const url = new URL("/login", req.nextUrl);
+    // Staff pages route to the staff/admin entrance; worker pages to the
+    // annotator entrance. Two distinct logins.
+    const url = new URL(needsStaff ? "/staff/login" : "/login", req.nextUrl);
     url.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(url);
   }
