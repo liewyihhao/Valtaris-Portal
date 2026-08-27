@@ -24,7 +24,11 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   if (!project) notFound();
 
   const allMembers = project.cohorts.flatMap((c) => c.members);
-  const confirmed = allMembers.filter((m) => m.status === "confirmed").length;
+  const accepted = allMembers.filter((m) => m.status === "accepted").length;
+  const invited = allMembers.filter((m) => m.status === "invited").length;
+
+  const memberIntent = (s: string) =>
+    s === "accepted" ? "success" : s === "declined" ? "danger" : s === "invited" ? "info" : "neutral";
 
   return (
     <div>
@@ -46,7 +50,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       <div className="mt-5 grid gap-4 sm:grid-cols-4">
         <Card><div className="text-xs uppercase tracking-wide text-p-secondary">Estimated items</div><div className="mt-1 text-2xl font-semibold text-p-primary">{project.estimatedItems.toLocaleString()}</div></Card>
         <Card><div className="text-xs uppercase tracking-wide text-p-secondary">Complexity ×</div><div className="mt-1 text-2xl font-semibold text-p-primary">{project.complexityMultiplier}</div></Card>
-        <Card><div className="text-xs uppercase tracking-wide text-p-secondary">Assigned</div><div className="mt-1 text-2xl font-semibold text-p-primary">{allMembers.length}</div><div className="text-xs text-p-secondary">{confirmed} confirmed</div></Card>
+        <Card><div className="text-xs uppercase tracking-wide text-p-secondary">Invited</div><div className="mt-1 text-2xl font-semibold text-p-primary">{allMembers.length}</div><div className="text-xs text-p-secondary">{accepted} accepted · {invited} pending</div></Card>
         <Card><div className="text-xs uppercase tracking-wide text-p-secondary">Studio project</div><div className="mt-1 text-sm text-p-primary">{project.labelStudioProjectId ?? "—"}</div></Card>
       </div>
 
@@ -72,7 +76,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   {c.members.map((m) => (
                     <TR key={m.id}>
                       <TD><Link href={`/admin/talent/${m.user.id}`} className="text-p-primary hover:text-p-accent">{m.user.fullName ?? m.user.email}</Link></TD>
-                      <TD><Badge intent={m.status === "confirmed" ? "success" : "info"} icon={false}>{m.status}</Badge></TD>
+                      <TD><Badge intent={memberIntent(m.status)} icon={false}>{m.status}</Badge></TD>
                     </TR>
                   ))}
                 </TBody>

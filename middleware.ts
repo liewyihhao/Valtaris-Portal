@@ -9,6 +9,7 @@ const { auth } = NextAuth(authConfig);
 const AUTHED_PREFIXES = [
   "/apply",
   "/dashboard",
+  "/invitations",
   "/earnings",
   "/payment-details",
   "/appeals",

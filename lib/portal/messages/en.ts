@@ -62,6 +62,11 @@ export const en = {
   "notif.compliance.review.body":
     "A routine sanctions re-screen needs review before further payouts. Compliance will follow up; you can appeal any resulting decision.",
 
+  // --- Project invitations ---
+  "notif.project.invited.title": "You're invited to a project",
+  "notif.project.invited.body":
+    "You've been selected for {project} ({track}). Review it in your invitations and accept to start working.",
+
   // --- Support ---
   "notif.support.resolved.title": "Your ticket was resolved",
 } as const;

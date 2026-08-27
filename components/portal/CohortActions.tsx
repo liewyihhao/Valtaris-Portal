@@ -42,7 +42,7 @@ export function CohortActions({
             </Select>
           </div>
           <Button size="sm" disabled={busy || !batchId} onClick={() => patch({ action: "assign", taskBatchId: batchId })}>
-            Assign &amp; confirm members
+            Assign &amp; invite members
           </Button>
           <Button size="sm" variant="secondary" disabled={busy} onClick={() => patch({ action: "archive" })}>Archive</Button>
         </div>

@@ -15,6 +15,7 @@ import {
   Bell,
   LifeBuoy,
   GraduationCap,
+  MailCheck,
   LogOut,
   Menu,
   X,
@@ -32,6 +33,7 @@ const applicantNav: NavItem[] = [
 
 const annotatorNav: NavItem[] = [
   { href: "/dashboard", label: "Task hub", icon: LayoutDashboard },
+  { href: "/invitations", label: "Invitations", icon: MailCheck },
   { href: "/validate", label: "Validate", icon: ShieldCheck },
   { href: "/my-work", label: "My work", icon: BarChart3 },
   { href: "/earnings", label: "Earnings", icon: Wallet },
