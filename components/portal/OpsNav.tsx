@@ -6,7 +6,7 @@ import { signOut } from "next-auth/react";
 import {
   Inbox, Users, DollarSign, HelpCircle, FileText, Boxes, LogOut, ArrowLeft,
   UsersRound, FolderKanban, Wallet, ShieldCheck, TrendingUp, Gavel, GraduationCap,
-  LifeBuoy, BarChart3, Home,
+  LifeBuoy, BarChart3, Home, Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoMark } from "@/components/brand/Logo";
@@ -18,6 +18,7 @@ const items = [
   { href: "/admin/applications", label: "Website applications", icon: Inbox, cap: "recruiter" },
   { href: "/admin/talent", label: "Worker directory", icon: UsersRound, cap: "recruiter" },
   { href: "/admin/cohorts", label: "Cohorts", icon: FolderKanban, cap: "recruiter" },
+  { href: "/admin/projects", label: "Projects", icon: Briefcase, cap: "recruiter" },
   { href: "/admin/forecast", label: "Capacity forecast", icon: TrendingUp, cap: "recruiter" },
   { href: "/admin/training", label: "Training content", icon: GraduationCap, cap: "training_author" },
   { href: "/admin/questions", label: "Question banks", icon: HelpCircle, cap: "assessment_ops" },
