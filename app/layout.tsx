@@ -17,12 +17,13 @@ const jetbrains = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://portal.valtaris.ai"), // [REPLACE] production portal domain
   title: {
-    default: "Valtaris Annotator Portal",
-    template: "%s — Valtaris",
+    default: "Valtaris Workforce Portal",
+    template: "%s — Valtaris Portal",
   },
-  description:
-    "Real paid work labelling and evaluating data to train AI. Apply, qualify, and get paid with Valtaris.",
-  robots: { index: true, follow: true },
+  // Internal ops + workforce tool — not a public marketing site (that's the
+  // separate Valtaris website). Not indexed.
+  description: "Internal Valtaris workforce operations portal.",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({

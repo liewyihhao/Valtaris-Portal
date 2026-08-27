@@ -12,7 +12,9 @@ import { Alert } from "@/components/portal/ui/Alert";
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const callbackUrl = params.get("callbackUrl") ?? "/apply";
+  // Default to the smart root, which routes each role to its home
+  // (staff → /admin/home, applicant → /apply, annotator → /dashboard).
+  const callbackUrl = params.get("callbackUrl") ?? "/";
   const verified = params.get("verified") === "1";
   const tokenError = params.get("error") === "invalid_token";
   const [error, setError] = useState<string | null>(null);

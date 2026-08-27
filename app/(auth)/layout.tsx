@@ -8,12 +8,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <Logo />
       </Link>
       <div className="w-full max-w-md">{children}</div>
-      <p className="mt-8 text-xs text-p-secondary">
-        Real paid work labelling data to train AI ·{" "}
-        <Link href="/how-it-works" className="text-p-accent hover:underline">
-          How it works
-        </Link>
-      </p>
+      <p className="mt-8 text-xs text-p-secondary">Valtaris workforce portal</p>
     </div>
   );
 }
