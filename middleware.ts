@@ -10,6 +10,8 @@ const AUTHED_PREFIXES = [
   "/apply",
   "/dashboard",
   "/invitations",
+  "/projects",
+  "/project-setup",
   "/earnings",
   "/payment-details",
   "/appeals",
