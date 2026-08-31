@@ -28,3 +28,25 @@ export async function postJson<T = Record<string, unknown>>(
   }
   return { ok: res.ok, status: res.status, data: out };
 }
+
+/** Same as postJson but issues a PATCH. */
+export async function postJsonPatch<T = Record<string, unknown>>(
+  url: string,
+  body?: unknown
+): Promise<{ ok: boolean; status: number; data: T & { error?: string } }> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    return { ok: false, status: 0, data: { error: "Network error — is the server running?" } as T & { error?: string } };
+  }
+  let data: (T & { error?: string }) | Record<string, never> = {};
+  try { data = await res.json(); } catch { data = {}; }
+  const out = data as T & { error?: string };
+  if (!res.ok && !out.error) out.error = `Server error (${res.status}). Please try again.`;
+  return { ok: res.ok, status: res.status, data: out };
+}

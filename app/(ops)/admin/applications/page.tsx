@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireCapability } from "@/lib/portal/capabilities";
 import { prisma } from "@/lib/db";
 import { Card, StatCard } from "@/components/portal/ui/Card";
@@ -38,7 +39,7 @@ export default async function ApplicationsPage() {
             {apps.map((a) => (
               <TR key={a.id}>
                 <TD>
-                  <div className="text-p-primary">{a.fullName}</div>
+                  <Link href={`/admin/applications/${a.id}`} className="text-p-primary hover:text-p-accent">{a.fullName}</Link>
                   <div className="text-xs text-p-secondary">{a.email}</div>
                 </TD>
                 <TD className="text-p-secondary">{a.opportunitySlug ?? "General network"}</TD>
@@ -47,7 +48,7 @@ export default async function ApplicationsPage() {
                   {a.languages.map((l) => `${l.languageName}${l.isStrongest ? "*" : ""}`).join(", ") || "—"}
                 </TD>
                 <TD className="whitespace-nowrap text-xs text-p-secondary">{a.createdAt.toLocaleString()}</TD>
-                <TD><Badge intent={a.status === "NEW" ? "info" : "neutral"} icon={false}>{a.status}</Badge></TD>
+                <TD><Badge intent={a.status === "NEW" ? "info" : a.status === "invited" ? "success" : a.status === "rejected" ? "danger" : "neutral"} icon={false}>{a.status}</Badge></TD>
               </TR>
             ))}
           </TBody>
