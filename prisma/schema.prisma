@@ -277,6 +277,10 @@ model TaskBatch {
   estimatedItems       Int      @default(0)
   labelStudioProjectId String?
   isActive             Boolean  @default(true)
+  // Delivery lifecycle: in_progress | in_review | delivered
+  deliveryStatus       String   @default("in_progress")
+  deliveredAt          DateTime?
+  deliveredById        String?
   createdAt            DateTime @default(now())
 
   track    Track    @relation(fields: [trackId], references: [id])
