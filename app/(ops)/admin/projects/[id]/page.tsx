@@ -95,11 +95,13 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               <div><div className="text-xs uppercase tracking-wide text-p-secondary">Validated reviews</div><div className="mt-1 text-2xl font-semibold text-p-primary">{deliverable.totals.validatedReviews}</div></div>
               <div><div className="text-xs uppercase tracking-wide text-p-secondary">Rejected / pending</div><div className="mt-1 text-2xl font-semibold text-p-primary">{deliverable.totals.rejectedTasks} / {deliverable.totals.pendingTasks}</div></div>
             </div>
-            {deliverable.byWorker.length > 0 && (
-              <div className="mt-4">
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-p-secondary">By annotator</div>
                 <Table>
-                  <THead><TH>Contributor</TH><TH>Tasks</TH><TH>Units</TH><TH>Payable</TH></THead>
+                  <THead><TH>Annotator</TH><TH>Tasks</TH><TH>Units</TH><TH>Payable</TH></THead>
                   <TBody>
+                    {deliverable.byWorker.length === 0 && <EmptyRow colSpan={4}>No accepted annotations yet.</EmptyRow>}
                     {deliverable.byWorker.map((w) => (
                       <TR key={w.userId}>
                         <TD className="text-p-primary">{w.name}</TD>
@@ -111,7 +113,24 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   </TBody>
                 </Table>
               </div>
-            )}
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-p-secondary">By validator</div>
+                <Table>
+                  <THead><TH>Validator</TH><TH>Reviewed</TH><TH>Approved</TH><TH>Rej/Corr</TH></THead>
+                  <TBody>
+                    {deliverable.byValidator.length === 0 && <EmptyRow colSpan={4}>No validations yet.</EmptyRow>}
+                    {deliverable.byValidator.map((v) => (
+                      <TR key={v.userId}>
+                        <TD className="text-p-primary">{v.name}</TD>
+                        <TD className="tabular-nums text-p-secondary">{v.reviewed}</TD>
+                        <TD className="tabular-nums text-success">{v.approved}</TD>
+                        <TD className="tabular-nums text-p-secondary">{v.rejected} / {v.corrections}</TD>
+                      </TR>
+                    ))}
+                  </TBody>
+                </Table>
+              </div>
+            </div>
           </>
         )}
         <div className="mt-4">

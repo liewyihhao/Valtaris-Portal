@@ -31,6 +31,7 @@ export type Deliverable = {
     completionPct: number; // acceptedUnits / estimatedItems
   };
   byWorker: { userId: string; name: string; tasks: number; units: number; gross: number }[];
+  byValidator: { userId: string; name: string; reviewed: number; approved: number; rejected: number; corrections: number }[];
   generatedAt: string;
 };
 
@@ -42,9 +43,22 @@ export async function getProjectDeliverable(batchId: string): Promise<Deliverabl
     where: { taskBatchId: batchId },
     include: { user: { select: { id: true, fullName: true, email: true } } },
   });
-  const reviews = await prisma.reviewAssignment.count({
-    where: { payout: { taskBatchId: batchId }, decision: { not: null } },
-  });
+  // Validated reviews reported from Studio (contract C3), per validator.
+  const taskReviews = await prisma.taskReview.findMany({ where: { taskBatchId: batchId } });
+  const validatorIds = [...new Set(taskReviews.map((r) => r.validatorId))];
+  const validatorUsers = validatorIds.length
+    ? await prisma.user.findMany({ where: { id: { in: validatorIds } }, select: { id: true, fullName: true, email: true } })
+    : [];
+  const vName = new Map(validatorUsers.map((u) => [u.id, u.fullName ?? u.email]));
+  const byValidatorMap = new Map<string, { userId: string; name: string; reviewed: number; approved: number; rejected: number; corrections: number }>();
+  for (const r of taskReviews) {
+    const row = byValidatorMap.get(r.validatorId) ?? { userId: r.validatorId, name: vName.get(r.validatorId) ?? r.validatorId, reviewed: 0, approved: 0, rejected: 0, corrections: 0 };
+    row.reviewed += 1;
+    if (r.decision === "approve") row.approved += 1;
+    else if (r.decision === "reject") row.rejected += 1;
+    else if (r.decision === "correction") row.corrections += 1;
+    byValidatorMap.set(r.validatorId, row);
+  }
 
   const accepted = payouts.filter((p) => ACCEPTED.includes(p.status));
   const rejected = payouts.filter((p) => REJECTED.includes(p.status));
@@ -78,10 +92,11 @@ export async function getProjectDeliverable(batchId: string): Promise<Deliverabl
       acceptedUnits,
       rejectedTasks: rejected.length,
       pendingTasks: pending.length,
-      validatedReviews: reviews,
+      validatedReviews: taskReviews.length,
       completionPct: batch.estimatedItems > 0 ? Math.min(100, Math.round((acceptedUnits / batch.estimatedItems) * 100)) : 0,
     },
     byWorker: [...byWorkerMap.values()].sort((a, b) => b.units - a.units),
+    byValidator: [...byValidatorMap.values()].sort((a, b) => b.reviewed - a.reviewed),
     generatedAt: new Date().toISOString(),
   };
 }
