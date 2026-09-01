@@ -56,11 +56,28 @@ export const labelStudio = {
     });
   },
 
-  // Register the ANNOTATION_CREATED/UPDATED webhook back to Valtaris.
-  ensureWebhook(projectId: string, url: string) {
+  // Register the ANNOTATION_CREATED/UPDATED webhook back to Valtaris, including
+  // the shared secret so the Portal accepts it. Idempotent: skips creation if a
+  // webhook to the same URL already covers this project (or org-wide) — avoids
+  // unauthenticated/duplicate registrations.
+  async ensureWebhook(projectId: string, url: string) {
+    const secret = process.env.LABEL_STUDIO_WEBHOOK_SECRET ?? "";
+    const existing = await ls<Array<{ url?: string; project?: number | null }>>("/api/webhooks/", { method: "GET" });
+    if (existing.ok && Array.isArray(existing.data)) {
+      const covers = existing.data.some(
+        (w) => w.url === url && (w.project == null || String(w.project) === String(projectId))
+      );
+      if (covers) return { configured: true, ok: true, status: 200, data: { deduped: true } };
+    }
     return ls("/api/webhooks/", {
       method: "POST",
-      body: JSON.stringify({ project: projectId, url, send_payload: true, actions: ["ANNOTATION_CREATED", "ANNOTATION_UPDATED"] }),
+      body: JSON.stringify({
+        project: projectId,
+        url,
+        send_payload: true,
+        actions: ["ANNOTATION_CREATED", "ANNOTATION_UPDATED"],
+        headers: secret ? { "X-Valtaris-Webhook-Secret": secret } : {},
+      }),
     });
   },
 
