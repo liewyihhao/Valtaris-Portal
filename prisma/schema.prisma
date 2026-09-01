@@ -281,6 +281,8 @@ model TaskBatch {
   deliveryStatus       String   @default("in_progress")
   deliveredAt          DateTime?
   deliveredById        String?
+  // Authoritative count of items imported into Studio (the project "total").
+  importedItems        Int      @default(0)
   createdAt            DateTime @default(now())
 
   track    Track    @relation(fields: [trackId], references: [id])
@@ -288,8 +290,33 @@ model TaskBatch {
   cohorts  Cohort[]
   submissions Submission[]
   projectCredentials ProjectCredential[]
+  datasetUploads DatasetUpload[]
 
   @@index([trackId])
+}
+
+// One uploaded customer dataset file for a project. The file is stream-parsed and
+// imported into the project's Studio project as tasks. Import is resumable
+// (importedRows advances) and idempotent by source_row_id (the row index).
+model DatasetUpload {
+  id           String   @id @default(cuid())
+  taskBatchId  String
+  filename     String
+  // format: jsonl | csv | json
+  format       String
+  storagePath  String   // private path/key on disk (never served publicly)
+  // status: uploaded | importing | completed | failed
+  status       String   @default("uploaded")
+  importedRows Int      @default(0)
+  lastError    String?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  taskBatch TaskBatch @relation(fields: [taskBatchId], references: [id], onDelete: Cascade)
+
+  @@index([taskBatchId])
+  @@index([status])
 }
 
 model Payout {

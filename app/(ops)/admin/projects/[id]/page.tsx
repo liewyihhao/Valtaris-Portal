@@ -8,6 +8,7 @@ import { Table, THead, TH, TBody, TR, TD, EmptyRow } from "@/components/portal/u
 import { Button } from "@/components/portal/ui/Button";
 import { ProjectActions } from "@/components/portal/ProjectActions";
 import { DeliverableActions } from "@/components/portal/DeliverableActions";
+import { DatasetUploader } from "@/components/portal/DatasetUploader";
 import { getProjectDeliverable } from "@/lib/portal/deliverable";
 import { formatMoney } from "@/lib/portal/labels";
 
@@ -22,6 +23,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         include: { members: { include: { user: { select: { id: true, fullName: true, email: true } } } } },
         orderBy: { createdAt: "desc" },
       },
+      datasetUploads: { orderBy: { createdAt: "desc" } },
     },
   });
   if (!project) notFound();
@@ -64,6 +66,18 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         <Card><div className="text-xs uppercase tracking-wide text-p-secondary">Invited</div><div className="mt-1 text-2xl font-semibold text-p-primary">{allMembers.length}</div><div className="text-xs text-p-secondary">{accepted} accepted · {invited} pending</div></Card>
         <Card><div className="text-xs uppercase tracking-wide text-p-secondary">Studio project</div><div className="mt-1 text-sm text-p-primary">{project.labelStudioProjectId ?? "—"}</div></Card>
       </div>
+
+      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-p-secondary">Dataset — {project.importedItems.toLocaleString()} items imported</h2>
+      <p className="mt-1 text-xs text-p-secondary">
+        Upload the customer file; items stream into the Studio project as tasks for annotators to label.
+        {!project.labelStudioProjectId && " Provision the Studio project first (above) or the import will fail."}
+      </p>
+      <Card className="mt-3">
+        <DatasetUploader
+          projectId={project.id}
+          uploads={project.datasetUploads.map((u) => ({ id: u.id, filename: u.filename, format: u.format, status: u.status, importedRows: u.importedRows, lastError: u.lastError }))}
+        />
+      </Card>
 
       <div className="mt-8 flex items-center gap-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-p-secondary">Deliverable — final review</h2>
