@@ -291,6 +291,7 @@ model TaskBatch {
   submissions Submission[]
   projectCredentials ProjectCredential[]
   datasetUploads DatasetUpload[]
+  taskReviews    TaskReview[]
 
   @@index([trackId])
 }
@@ -1114,4 +1115,27 @@ model ProjectCredential {
 
   @@unique([userId, taskBatchId])
   @@index([username])
+}
+
+// A validator's review of one annotated item, reported from Studio (contract C3).
+// The per-validator validated-count ledger; the validator's review pay links via
+// payoutId. Idempotent per (project, sourceRowId, validator).
+model TaskReview {
+  id           String   @id @default(cuid())
+  taskBatchId  String
+  sourceRowId  String
+  validatorId  String
+  annotatorId  String?
+  // decision: approve | reject | correction
+  decision     String
+  reasonCode   String?
+  reasonDetail String?
+  payoutId     String?  // the validator's review-pay payout
+  createdAt    DateTime @default(now())
+
+  taskBatch TaskBatch @relation(fields: [taskBatchId], references: [id], onDelete: Cascade)
+
+  @@unique([taskBatchId, sourceRowId, validatorId])
+  @@index([taskBatchId])
+  @@index([validatorId])
 }

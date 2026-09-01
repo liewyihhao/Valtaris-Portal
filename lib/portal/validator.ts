@@ -306,12 +306,12 @@ export async function recordReviewDecision(params: {
 }
 
 /** Create the Validator's review-pay payout (review:<track> rate × their tier). */
-async function payValidatorForReview(validatorId: string, trackId: string, reviewedBatchId?: string) {
+export async function payValidatorForReview(validatorId: string, trackId: string, reviewedBatchId?: string) {
   const reviewBatch = await prisma.taskBatch.findFirst({
     where: { trackId, taskType: { startsWith: REVIEW_TASK_PREFIX } },
   });
   const batchId = reviewBatch?.id ?? reviewedBatchId;
-  if (!batchId) return;
+  if (!batchId) return null;
   const rate = await prisma.rateCard.findFirst({
     where: { trackId, taskType: { startsWith: REVIEW_TASK_PREFIX }, isCurrent: true },
     orderBy: { version: "desc" },
@@ -319,7 +319,7 @@ async function payValidatorForReview(validatorId: string, trackId: string, revie
   const cap = await prisma.qualification.findUnique({ where: { userId_trackId: { userId: validatorId, trackId } } });
   const tier = (cap?.tier ?? "T2_skilled") as Tier;
   const gross = Math.round((rate?.baseRate ?? 0.15) * tierMultiplier(tier) * 100) / 100;
-  await prisma.payout.create({
+  const payout = await prisma.payout.create({
     data: {
       userId: validatorId,
       taskBatchId: batchId,
@@ -332,4 +332,5 @@ async function payValidatorForReview(validatorId: string, trackId: string, revie
       itemCount: 1,
     },
   });
+  return payout.id;
 }

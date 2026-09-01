@@ -10,7 +10,7 @@ import { createHash, randomBytes } from "crypto";
 // DB access is lazily imported.
 // ---------------------------------------------------------------------------
 
-export const SERVICE_SCOPES = ["worksummary:write", "standing:read"] as const;
+export const SERVICE_SCOPES = ["worksummary:write", "standing:read", "review:write"] as const;
 export type ServiceScope = (typeof SERVICE_SCOPES)[number];
 
 export const KEY_PREFIX = "vlt_"; // human-recognizable key prefix
