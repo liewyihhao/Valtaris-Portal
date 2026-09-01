@@ -2,6 +2,27 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ingestAnnotation } from "@/lib/portal/ingest";
 
+// A validator's review is submitted in Studio as an annotation too, so this
+// webhook also fires for reviews. If the annotation carries a review_decision,
+// it is a review (handled by the explicit C3 endpoint) — NOT a pay annotation.
+// Treating it as one would create a spurious payout (double-pay).
+function carriesReviewDecision(annotation: { review_decision?: unknown; result?: unknown }): boolean {
+  if (annotation?.review_decision != null) return true;
+  const result = annotation?.result;
+  if (Array.isArray(result)) {
+    return result.some((r) => {
+      const item = r as { from_name?: string; to_name?: string; type?: string; value?: Record<string, unknown> };
+      return (
+        item?.from_name === "review_decision" ||
+        item?.to_name === "review_decision" ||
+        item?.type === "review_decision" ||
+        (item?.value != null && typeof item.value === "object" && "review_decision" in item.value)
+      );
+    });
+  }
+  return false;
+}
+
 // Webhook receiver for ANNOTATION_CREATED / ANNOTATION_UPDATED. Verifies a
 // shared secret — never accepts unauthenticated payloads that can create
 // payout records. Idempotent via WebhookEvent unique constraint.
@@ -54,6 +75,17 @@ export async function POST(req: Request) {
     },
     update: { rawPayload: body },
   });
+
+  // A review-annotation is not a pay annotation — reviews come through the C3
+  // /api/integration/review endpoint. Record the event but skip the pay path so
+  // the validator/annotator is never double-paid.
+  if (carriesReviewDecision(annotation)) {
+    await prisma.webhookEvent.updateMany({
+      where: { labelStudioAnnotationId: annotationId, eventType: action },
+      data: { processed: true },
+    });
+    return NextResponse.json({ ok: true, skipped: "review_decision" });
+  }
 
   const result = await ingestAnnotation({
     labelStudioProjectId: projectId,
