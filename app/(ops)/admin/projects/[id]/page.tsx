@@ -55,7 +55,6 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             projectId={project.id}
             isActive={project.isActive}
             studioProjectId={project.labelStudioProjectId}
-            studioBaseUrl={process.env.LABEL_STUDIO_BASE_URL ?? "http://localhost:8091"}
           />
         </div>
       </div>

@@ -8,12 +8,10 @@ export function ProjectActions({
   projectId,
   isActive,
   studioProjectId,
-  studioBaseUrl,
 }: {
   projectId: string;
   isActive: boolean;
   studioProjectId: string | null;
-  studioBaseUrl: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -38,7 +36,7 @@ export function ProjectActions({
       <div className="flex items-center gap-2">
         {studioProjectId ? (
           <a
-            href={`${studioBaseUrl}/projects/${studioProjectId}`}
+            href={`/api/studio/sso?project=${encodeURIComponent(projectId)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-lg border border-p-border px-3 py-1.5 text-xs text-p-accent hover:underline"

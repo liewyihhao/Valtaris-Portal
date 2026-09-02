@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/portal/session";
+import { requireUser, isStaff } from "@/lib/portal/session";
 import { studioEligible, mintStudioToken, studioLoginUrl } from "@/lib/portal/studio-access";
 import { writeAudit } from "@/lib/portal/audit";
 
@@ -9,9 +9,13 @@ import { writeAudit } from "@/lib/portal/audit";
 // (e.g. failed exam) never get a token and are sent back with a reason.
 export async function GET(req: Request) {
   const user = await requireUser();
+  // Staff (admin/ops/PM/internal) enter Studio to inspect projects; they are not
+  // annotators and don't hold worker qualifications, so they bypass the exam gate
+  // but still enter through the token hand-off — Studio has no standalone login.
+  const staff = isStaff(user.role);
   const { eligible, reasons } = await studioEligible(user.id);
 
-  if (!eligible) {
+  if (!eligible && !staff) {
     await writeAudit({
       entityType: "LabelStudioAccount",
       entityId: user.id,
@@ -32,7 +36,8 @@ export async function GET(req: Request) {
   let lsProjectId: string | null = null;
   if (projectBatchId) {
     const batch = await prisma.taskBatch.findUnique({ where: { id: projectBatchId }, select: { labelStudioProjectId: true, importedItems: true } });
-    if (!batch?.labelStudioProjectId || batch.importedItems <= 0) {
+    // Annotators are never sent into an empty project; staff may inspect one.
+    if (!batch?.labelStudioProjectId || (batch.importedItems <= 0 && !staff)) {
       const url = new URL(`/projects/${projectBatchId}`, req.url);
       url.searchParams.set("studio", "no_data");
       return NextResponse.redirect(url);
