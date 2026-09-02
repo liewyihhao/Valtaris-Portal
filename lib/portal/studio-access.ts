@@ -70,9 +70,12 @@ export function mintStudioToken(params: { userId: string; email: string; lsUserI
   return signJwt({ sub: params.userId, email: params.email, lsUserId: params.lsUserId ?? null, exp }, secret);
 }
 
-export function studioLoginUrl(token: string): string {
+export function studioLoginUrl(token: string, labelStudioProjectId?: string | null): string {
   const base = process.env.LABEL_STUDIO_BASE_URL ?? "http://localhost:8080";
-  return `${base}/sso/login?token=${encodeURIComponent(token)}`;
+  const proj = labelStudioProjectId ? `&project=${encodeURIComponent(labelStudioProjectId)}` : "";
+  // `project` deep-links Studio to that project's data after SSO login (Studio
+  // only grants access to projects that have data uploaded from the Portal).
+  return `${base}/sso/login?token=${encodeURIComponent(token)}${proj}`;
 }
 
 // Block or restore Studio access. Called by suspend/recert/fraud/compliance

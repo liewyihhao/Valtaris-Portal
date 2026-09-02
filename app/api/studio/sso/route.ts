@@ -25,6 +25,21 @@ export async function GET(req: Request) {
     return NextResponse.redirect(url);
   }
 
+  // Optional per-project deep-link. Studio only grants access to projects that
+  // have data uploaded from the Portal, so we never send a worker into an empty
+  // project — redirect back with a reason instead.
+  const projectBatchId = new URL(req.url).searchParams.get("project");
+  let lsProjectId: string | null = null;
+  if (projectBatchId) {
+    const batch = await prisma.taskBatch.findUnique({ where: { id: projectBatchId }, select: { labelStudioProjectId: true, importedItems: true } });
+    if (!batch?.labelStudioProjectId || batch.importedItems <= 0) {
+      const url = new URL(`/projects/${projectBatchId}`, req.url);
+      url.searchParams.set("studio", "no_data");
+      return NextResponse.redirect(url);
+    }
+    lsProjectId = batch.labelStudioProjectId;
+  }
+
   const account = await prisma.labelStudioAccount.findUnique({ where: { userId: user.id } });
   const token = mintStudioToken({ userId: user.id, email: user.email, lsUserId: account?.labelStudioUserId });
 
@@ -32,7 +47,7 @@ export async function GET(req: Request) {
     where: { userId: user.id },
     data: { lastSsoAt: new Date(), ssoLinkedAt: account?.ssoLinkedAt ?? new Date(), studioAccessStatus: "active", lsUserActive: true },
   });
-  await writeAudit({ entityType: "LabelStudioAccount", entityId: account?.id ?? user.id, action: "studio_sso_issued", actorId: user.id });
+  await writeAudit({ entityType: "LabelStudioAccount", entityId: account?.id ?? user.id, action: "studio_sso_issued", actorId: user.id, after: lsProjectId ? { project: lsProjectId } : undefined });
 
-  return NextResponse.redirect(studioLoginUrl(token));
+  return NextResponse.redirect(studioLoginUrl(token, lsProjectId));
 }
